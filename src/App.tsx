@@ -28,6 +28,7 @@ import { ArchiveSetupModal } from './components/ArchiveSetupModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { UserGuideModal } from './components/UserGuideModal';
 import { UnauthorizedDomainModal } from './components/UnauthorizedDomainModal';
+import { PWAInstallButton } from './components/PWAInstallButton';
 import { BackupPackage } from './services/exportBackupService';
 import { firebaseConfig } from './services/auth';
 import { ShieldCheck, HardDrive, CheckCircle2, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
@@ -528,6 +529,11 @@ export default function App() {
                   Oppure: Prova in modalità locale (Demo di test)
                 </button>
               </div>
+
+              {/* Install PWA Prompt */}
+              <div className="pt-2">
+                <PWAInstallButton variant="banner" />
+              </div>
             </div>
           </div>
         </div>
@@ -626,6 +632,9 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+        {/* Mobile PWA Install Notice */}
+        <PWAInstallButton variant="banner" className="mb-4" />
+
         {activeTab === 'registro' && (
           <MassList
             messe={messe}

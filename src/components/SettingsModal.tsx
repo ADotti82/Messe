@@ -28,6 +28,7 @@ import {
   validateBackupFile,
   BackupPackage,
 } from '../services/exportBackupService';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -219,6 +220,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </span>
             )}
           </div>
+
+          {/* Mobile App PWA Installation */}
+          <PWAInstallButton variant="banner" />
 
           {/* Google Drive Personal Archive Status */}
           <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/60 space-y-3">

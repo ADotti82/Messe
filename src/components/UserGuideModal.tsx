@@ -117,6 +117,28 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
               <li>Accedendo da smartphone, tablet o computer con il medesimo account Google, ritroverai istantaneamente il tuo registro sincronizzato.</li>
             </ul>
           </div>
+
+          {/* Section H: PWA Mobile Installation */}
+          <div className="space-y-2">
+            <h3 className="font-serif font-bold text-amber-200 text-sm flex items-center space-x-2">
+              <span className="text-amber-400 text-base">📱</span>
+              <span>6. Installazione come App su Cellulare (PWA)</span>
+            </h3>
+            <p>
+              Puoi installare questa applicazione sulla schermata principale del tuo cellulare per aprirla a schermo intero come una normale app nativa, senza barra degli indirizzi:
+            </p>
+            <ul className="list-disc pl-5 space-y-1.5 text-slate-400 text-xs">
+              <li>
+                <strong className="text-slate-200">Su Android (Chrome):</strong> compare il pulsante <em>"Installa App"</em> o puoi toccare i 3 puntini in alto a destra e selezionare <em>"Installa app"</em> / <em>"Aggiungi a schermata Home"</em>.
+              </li>
+              <li>
+                <strong className="text-slate-200">Su iPhone / iPad (Safari):</strong> tocca l'icona <em>Condividi</em> (quadrato con freccia verso l'alto ⎋ in basso), scorri il menu e tocca <em>"Aggiungi alla schermata Home"</em>, quindi tocca <em>"Aggiungi"</em>.
+              </li>
+              <li>
+                <strong className="text-slate-200">Funzionamento Offline:</strong> una volta installata, l'applicazione memorizza nella cache locale l'interfaccia e il calendario liturgico per funzionare anche in sagrestia o in luoghi con scarso segnale.
+              </li>
+            </ul>
+          </div>
         </div>
 
         {/* Footer */}

@@ -19,6 +19,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { UserProfile, Impostazioni } from '../types';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface NavbarProps {
   activeTab: 'registro' | 'calendario' | 'statistiche' | 'luoghi';
@@ -133,6 +134,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               <PlusCircle className="w-4 h-4 text-amber-200" />
               <span className="font-semibold tracking-wide">+ NUOVA MESSA</span>
             </button>
+
+            {/* PWA Install Button */}
+            <PWAInstallButton variant="compact" />
 
             {/* Online / Offline status badge */}
             <div
