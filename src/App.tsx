@@ -27,8 +27,10 @@ import { SettingsModal } from './components/SettingsModal';
 import { ArchiveSetupModal } from './components/ArchiveSetupModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { UserGuideModal } from './components/UserGuideModal';
+import { UnauthorizedDomainModal } from './components/UnauthorizedDomainModal';
 import { BackupPackage } from './services/exportBackupService';
-import { ShieldCheck, HardDrive, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { firebaseConfig } from './services/auth';
+import { ShieldCheck, HardDrive, CheckCircle2, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
 
 export default function App() {
   // Authentication & Repository
@@ -153,6 +155,11 @@ export default function App() {
     }
   }, [repository, loadArchiveAndData]);
 
+  const [isDomainModalOpen, setIsDomainModalOpen] = useState<boolean>(false);
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string>(
+    typeof window !== 'undefined' ? window.location.hostname : ''
+  );
+
   // Login handler
   const handleGoogleLogin = async () => {
     try {
@@ -165,10 +172,24 @@ export default function App() {
       const repo = new GoogleSheetsRepository(accessToken, loggedUser);
       setRepository(repo);
     } catch (err: any) {
-      setAuthError(
-        err.message ||
-          'Accesso non riuscito. Verifica la connessione e concedi i permessi per Google Drive e Fogli.'
-      );
+      const isUnauthorizedDomain =
+        err.code === 'auth/unauthorized-domain' ||
+        err.message?.includes('unauthorized-domain') ||
+        err.message?.includes('auth/unauthorized-domain');
+
+      if (isUnauthorizedDomain) {
+        const domain = err.domain || window.location.hostname;
+        setUnauthorizedDomain(domain);
+        setIsDomainModalOpen(true);
+        setAuthError(
+          `Il dominio "${domain}" non è autorizzato in Firebase per questo progetto Google.`
+        );
+      } else {
+        setAuthError(
+          err.message ||
+            'Accesso non riuscito. Verifica la connessione e concedi i permessi per Google Drive e Fogli.'
+        );
+      }
     } finally {
       setIsAuthLoading(false);
     }
@@ -435,9 +456,21 @@ export default function App() {
             </div>
 
             {authError && (
-              <div className="p-3 bg-red-950/80 border border-red-700 rounded-lg text-xs text-red-200 text-left flex items-start space-x-2">
-                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                <span>{authError}</span>
+              <div className="p-3.5 bg-red-950/80 border border-red-700 rounded-xl text-xs text-red-200 text-left space-y-2">
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <span className="leading-snug">{authError}</span>
+                </div>
+                {authError.includes('non è autorizzato') && (
+                  <button
+                    type="button"
+                    onClick={() => setIsDomainModalOpen(true)}
+                    className="w-full bg-amber-700/80 hover:bg-amber-600 text-amber-100 font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-sm"
+                  >
+                    <span>Come autorizzare "{unauthorizedDomain}" in 1 minuto</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             )}
 
@@ -503,6 +536,16 @@ export default function App() {
         <div className="max-w-4xl mx-auto w-full text-center text-xs text-slate-500 py-2">
           Applicazione per sacerdoti • Calendario Romano Generale CalAPI (general-it) • Google Drive API v3 • Google Sheets API v4
         </div>
+
+        {/* Unauthorized Domain Modal */}
+        <UnauthorizedDomainModal
+          isOpen={isDomainModalOpen}
+          onClose={() => setIsDomainModalOpen(false)}
+          domain={unauthorizedDomain}
+          projectId={firebaseConfig.projectId}
+          onRetry={handleGoogleLogin}
+          onDemoLogin={handleDemoLogin}
+        />
 
         {/* User Guide Modal */}
         <UserGuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
