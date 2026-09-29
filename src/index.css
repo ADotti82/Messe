@@ -1,13 +1,32 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
+  html, body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     background-color: #020617;
     color: #f8fafc;
+    overflow-x: hidden;
+    max-width: 100vw;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  * {
+    box-sizing: border-box;
   }
 
   .font-serif {
     font-family: 'Cinzel', Georgia, Cambria, 'Times New Roman', Times, serif;
+  }
+
+  /* Safe area padding for mobile iPhones / modern Android devices */
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom, 0.75rem), 0.75rem);
+  }
+  .pt-safe {
+    padding-top: max(env(safe-area-inset-top, 0.5rem), 0.5rem);
   }
 }

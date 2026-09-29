@@ -595,7 +595,7 @@ export default function App() {
   // RENDER: Authenticated Main Application View
   // -------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-800 selection:text-white">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-800 selection:text-white w-full max-w-full overflow-x-hidden">
       {/* Top Navigation */}
       <Navbar
         activeTab={activeTab}
@@ -612,7 +612,7 @@ export default function App() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-16 sm:bottom-6 right-4 sm:right-6 z-50 animate-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed bottom-20 sm:bottom-6 right-3 sm:right-6 z-50 animate-in slide-in-from-bottom-4 duration-200 max-w-[90vw]">
           <div
             className={`px-4 py-2.5 rounded-xl shadow-xl border flex items-center space-x-2 text-xs sm:text-sm font-medium ${
               toastMessage.type === 'success'
@@ -631,7 +631,7 @@ export default function App() {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-3 pb-24 md:pb-8 w-full max-w-full overflow-x-hidden">
         {/* Mobile PWA Install Notice */}
         <PWAInstallButton variant="banner" className="mb-4" />
 

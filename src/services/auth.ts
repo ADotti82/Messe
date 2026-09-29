@@ -10,6 +10,8 @@ import {
   signOut,
   GoogleAuthProvider,
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
   User,
 } from 'firebase/auth';
 import rawFirebaseConfig from '../../firebase-applet-config.json';
@@ -29,6 +31,15 @@ export const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 
+// Ensure local persistence across browser sessions and PWA restarts
+try {
+  setPersistence(auth, browserLocalPersistence).catch((err) => {
+    console.warn('Firebase setPersistence warning:', err);
+  });
+} catch (e) {
+  console.warn('Could not set persistence:', e);
+}
+
 // Configure Google Provider with required Google Workspace Scopes
 const provider = new GoogleAuthProvider();
 provider.addScope('https://www.googleapis.com/auth/drive.file');
@@ -37,7 +48,59 @@ provider.setCustomParameters({
   prompt: 'select_account',
 });
 
-// Cache the access token strictly in memory (Never stored in localStorage or sessionStorage)
+export interface StoredSession {
+  user: UserProfile;
+  accessToken: string;
+  expiresAt: number;
+  authMethod: 'firebase' | 'gis';
+  savedAt: number;
+}
+
+const STORAGE_SESSION_KEY = 'registro_messe_saved_session';
+
+export const getSavedSession = (): StoredSession | null => {
+  try {
+    const raw = localStorage.getItem(STORAGE_SESSION_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as StoredSession;
+    if (session && session.user && session.accessToken) {
+      return session;
+    }
+  } catch (e) {
+    console.warn('Error reading saved session:', e);
+  }
+  return null;
+};
+
+export const saveSession = (
+  user: UserProfile,
+  accessToken: string,
+  expiresInSeconds: number = 3600,
+  authMethod: 'firebase' | 'gis' = 'firebase'
+) => {
+  try {
+    const session: StoredSession = {
+      user,
+      accessToken,
+      expiresAt: Date.now() + Math.max(expiresInSeconds - 120, 600) * 1000,
+      authMethod,
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(session));
+    cachedAccessToken = accessToken;
+  } catch (e) {
+    console.warn('Error saving session:', e);
+  }
+};
+
+export const clearSavedSession = () => {
+  try {
+    localStorage.removeItem(STORAGE_SESSION_KEY);
+    cachedAccessToken = null;
+  } catch (e) {}
+};
+
+// Cache the access token in memory for fast synchronous access
 let cachedAccessToken: string | null = null;
 let isSigningIn = false;
 
@@ -56,6 +119,7 @@ export const setDemoMode = (enabled: boolean) => {
     localStorage.removeItem('registro_messe_demo_active');
   } else {
     localStorage.setItem('registro_messe_demo_active', 'true');
+    clearSavedSession();
   }
 };
 
@@ -64,7 +128,7 @@ export const checkIsDemoMode = (): boolean => {
 };
 
 /**
- * Initialize Auth State Listener
+ * Initialize Auth State Listener with automatic persistent session recovery
  */
 export const initAuth = (
   callback: (user: UserProfile | null, token: string | null, isDemo: boolean) => void
@@ -75,6 +139,27 @@ export const initAuth = (
     return () => {};
   }
 
+  // 1. Immediately check for a saved persistent session in localStorage
+  const saved = getSavedSession();
+  if (saved) {
+    cachedAccessToken = saved.accessToken;
+    // Notify application immediately so priest does not have to login again
+    callback(saved.user, saved.accessToken, false);
+
+    // If token is expired or close to expiring, attempt silent refresh in background
+    if (Date.now() > saved.expiresAt) {
+      silentRefreshToken().then((freshToken) => {
+        if (freshToken) {
+          saveSession(saved.user, freshToken, 3600, saved.authMethod);
+          callback(saved.user, freshToken, false);
+        }
+      }).catch(() => {
+        console.warn('Background token refresh was silent.');
+      });
+    }
+  }
+
+  // 2. Listen to Firebase auth state
   return onAuthStateChanged(auth, async (firebaseUser: User | null) => {
     if (firebaseUser) {
       const profile: UserProfile = {
@@ -84,14 +169,54 @@ export const initAuth = (
         photoURL: firebaseUser.photoURL,
       };
 
-      if (cachedAccessToken) {
-        callback(profile, cachedAccessToken, false);
-      } else if (!isSigningIn) {
+      const currentSaved = getSavedSession();
+      const effectiveToken = cachedAccessToken || currentSaved?.accessToken || null;
+
+      if (effectiveToken) {
+        callback(profile, effectiveToken, false);
+      } else if (!isSigningIn && !saved) {
         callback(profile, null, false);
       }
     } else {
-      cachedAccessToken = null;
-      callback(null, null, false);
+      // If Firebase state is logged out AND there is no saved GIS session
+      const currentSaved = getSavedSession();
+      if (!currentSaved) {
+        cachedAccessToken = null;
+        callback(null, null, false);
+      }
+    }
+  });
+};
+
+/**
+ * Attempt silent background refresh of Google OAuth token using GIS
+ */
+export const silentRefreshToken = async (): Promise<string | null> => {
+  return new Promise((resolve) => {
+    // @ts-ignore
+    const google = window.google;
+    if (!google?.accounts?.oauth2) {
+      return resolve(null);
+    }
+
+    try {
+      const tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: firebaseConfig.oAuthClientId,
+        scope:
+          'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
+        callback: (tokenResponse: any) => {
+          if (tokenResponse?.access_token) {
+            resolve(tokenResponse.access_token);
+          } else {
+            resolve(null);
+          }
+        },
+      });
+
+      // Request without prompt for silent refresh
+      tokenClient.requestAccessToken({ prompt: '' });
+    } catch {
+      resolve(null);
     }
   });
 };
@@ -122,7 +247,7 @@ export const signInWithGIS = async (): Promise<{ user: UserProfile; accessToken:
           }
 
           const accessToken = tokenResponse.access_token;
-          cachedAccessToken = accessToken;
+          const expiresIn = tokenResponse.expires_in ? Number(tokenResponse.expires_in) : 3600;
 
           try {
             // Fetch priest profile from Google OAuth userinfo endpoint
@@ -137,28 +262,28 @@ export const signInWithGIS = async (): Promise<{ user: UserProfile; accessToken:
                 displayName: data.name || `${data.given_name || ''} ${data.family_name || ''}`.trim() || 'Sacerdote',
                 photoURL: data.picture,
               };
+
+              saveSession(profile, accessToken, expiresIn, 'gis');
               resolve({ user: profile, accessToken });
             } else {
-              resolve({
-                user: {
-                  uid: 'google-user-' + Date.now(),
-                  email: null,
-                  displayName: 'Sacerdote',
-                  photoURL: null,
-                },
-                accessToken,
-              });
-            }
-          } catch (e) {
-            resolve({
-              user: {
+              const fallbackProfile: UserProfile = {
                 uid: 'google-user-' + Date.now(),
                 email: null,
                 displayName: 'Sacerdote',
                 photoURL: null,
-              },
-              accessToken,
-            });
+              };
+              saveSession(fallbackProfile, accessToken, expiresIn, 'gis');
+              resolve({ user: fallbackProfile, accessToken });
+            }
+          } catch (e) {
+            const fallbackProfile: UserProfile = {
+              uid: 'google-user-' + Date.now(),
+              email: null,
+              displayName: 'Sacerdote',
+              photoURL: null,
+            };
+            saveSession(fallbackProfile, accessToken, expiresIn, 'gis');
+            resolve({ user: fallbackProfile, accessToken });
           }
         },
       });
@@ -189,8 +314,6 @@ export const googleSignIn = async (): Promise<{ user: UserProfile; accessToken: 
         );
       }
 
-      cachedAccessToken = credential.accessToken;
-
       const profile: UserProfile = {
         uid: result.user.uid,
         email: result.user.email,
@@ -198,7 +321,8 @@ export const googleSignIn = async (): Promise<{ user: UserProfile; accessToken: 
         photoURL: result.user.photoURL,
       };
 
-      return { user: profile, accessToken: cachedAccessToken };
+      saveSession(profile, credential.accessToken, 3600, 'firebase');
+      return { user: profile, accessToken: credential.accessToken };
     } catch (firebaseErr: any) {
       // If error is unauthorized-domain, try Google Identity Services as fallback
       if (
@@ -210,7 +334,6 @@ export const googleSignIn = async (): Promise<{ user: UserProfile; accessToken: 
           return await signInWithGIS();
         } catch (gisErr: any) {
           console.warn('GIS fallback also threw:', gisErr);
-          // Re-throw original unauthorized domain error with enriched properties
           const err = new Error(
             `Il dominio corrente (${window.location.hostname}) non è autorizzato in Firebase.`
           );
@@ -240,14 +363,18 @@ export const refreshGoogleToken = async (): Promise<string> => {
 };
 
 /**
- * Sign out
+ * Sign out and clear stored session
  */
 export const googleSignOut = async (): Promise<void> => {
   setDemoMode(false);
-  cachedAccessToken = null;
-  await signOut(auth);
+  clearSavedSession();
+  try {
+    await signOut(auth);
+  } catch (e) {
+    console.warn('Sign out warning:', e);
+  }
 };
 
 export const getCachedAccessToken = (): string | null => {
-  return cachedAccessToken;
+  return cachedAccessToken || getSavedSession()?.accessToken || null;
 };

@@ -227,7 +227,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <button
                   key={day.dateStr}
                   onClick={() => setSelectedDayStr(day.dateStr)}
-                  className={`min-h-[58px] sm:min-h-[72px] p-1.5 rounded-lg border flex flex-col justify-between text-left transition-all relative ${
+                  className={`min-h-[48px] sm:min-h-[72px] p-1 sm:p-1.5 rounded-lg border flex flex-col justify-between text-left transition-all relative overflow-hidden ${
                     isSelected
                       ? 'bg-amber-950/70 border-amber-500 shadow-md ring-1 ring-amber-500/50'
                       : day.isCurrentMonth
@@ -237,7 +237,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 >
                   <div className="flex items-center justify-between w-full">
                     <span
-                      className={`text-xs font-mono font-medium rounded-full w-5 h-5 flex items-center justify-center ${
+                      className={`text-[11px] sm:text-xs font-mono font-medium rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center shrink-0 ${
                         isToday
                           ? 'bg-red-700 text-white font-bold'
                           : isSelected

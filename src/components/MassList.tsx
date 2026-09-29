@@ -216,11 +216,11 @@ export const MassList: React.FC<MassListProps> = ({
           </div>
 
           {/* Quick Filter Buttons */}
-          <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 sm:pb-0">
+          <div className="flex items-center space-x-1.5 w-full sm:w-auto">
             <select
               value={filtri.periodo}
               onChange={(e) => setFiltri({ ...filtri, periodo: e.target.value as FiltroTemporale })}
-              className="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-amber-500"
+              className="flex-1 sm:flex-none bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-amber-500"
             >
               <option value="tutto">Tutto il registro</option>
               <option value="oggi">Oggi</option>
@@ -233,7 +233,7 @@ export const MassList: React.FC<MassListProps> = ({
 
             <button
               onClick={() => setShowFiltersModal(!showFiltersModal)}
-              className={`flex items-center space-x-1 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
+              className={`flex items-center space-x-1 px-3 py-2 rounded-lg text-xs font-medium border transition-colors shrink-0 ${
                 filtri.luogo || filtri.soloDefunti || filtri.soloConIntenzione || filtri.periodo === 'personalizzato'
                   ? 'bg-amber-950/70 border-amber-500/70 text-amber-200'
                   : 'bg-slate-950 border-slate-700 text-slate-300 hover:bg-slate-800'
