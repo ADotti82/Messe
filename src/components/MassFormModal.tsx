@@ -88,6 +88,10 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
   const [intenzione, setIntenzione] = useState<string>('');
   const [nomeDefunto, setNomeDefunto] = useState<string>('');
   const [note, setNote] = useState<string>('');
+  const [richiedente, setRichiedente] = useState<string>('');
+  const [dataMorte, setDataMorte] = useState<string>('');
+  const [offerta, setOfferta] = useState<string>('');
+  const [offertaLibera, setOffertaLibera] = useState<boolean>(false);
 
   // UI status
   const [isGpsLoading, setIsGpsLoading] = useState<boolean>(false);
@@ -120,6 +124,10 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
       setIntenzione(editingMass.intenzione || '');
       setNomeDefunto(editingMass.nomeDefunto || '');
       setNote(editingMass.note || '');
+      setRichiedente(editingMass.richiedente || '');
+      setDataMorte(editingMass.dataMorte || '');
+      setOfferta(editingMass.offerta !== undefined && editingMass.offerta !== null ? String(editingMass.offerta) : '');
+      setOffertaLibera(Boolean(editingMass.offertaLibera));
     } else {
       const targetDate = initialDate || getTodayStr();
       setData(targetDate);
@@ -140,6 +148,10 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
       setIntenzione('');
       setNomeDefunto('');
       setNote('');
+      setRichiedente('');
+      setDataMorte('');
+      setOfferta('');
+      setOffertaLibera(false);
 
       // Load liturgical day for the selected date
       loadLiturgyForDate(targetDate);
@@ -258,6 +270,10 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
           tipoIntenzione,
           intenzione: intenzione.trim(),
           nomeDefunto: nomeDefunto.trim(),
+          richiedente: richiedente.trim() || '',
+          dataMorte: tipoIntenzione === 'Per un defunto' && dataMorte ? dataMorte : '',
+          offerta: offertaLibera ? null : (offerta ? Number(offerta) : null),
+          offertaLibera,
           note: note.trim(),
         },
         editingMass?.id
@@ -588,19 +604,33 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
 
             {/* If "Per un defunto": Deceased Name input */}
             {tipoIntenzione === 'Per un defunto' && (
-              <div className="p-3 bg-purple-950/30 border border-purple-800/50 rounded-lg space-y-1">
-                <label className="text-xs font-semibold text-purple-200 flex items-center space-x-1">
-                  <span>✝️ NOME DEL DEFUNTO (O DEI DEFUNTI):</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="es. Mario Rossi, Luigi Bianchi (anche più nomi)"
-                  value={nomeDefunto}
-                  onChange={(e) => setNomeDefunto(e.target.value)}
-                  className="w-full bg-slate-900 border border-purple-700/60 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-400"
-                  required
-                  autoFocus
-                />
+              <div className="p-3 bg-purple-950/30 border border-purple-800/50 rounded-lg space-y-2">
+                <div>
+                  <label className="text-xs font-semibold text-purple-200 flex items-center space-x-1">
+                    <span>✝️ NOME DEL DEFUNTO (O DEI DEFUNTI):</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="es. Mario Rossi, Luigi Bianchi (anche più nomi)"
+                    value={nomeDefunto}
+                    onChange={(e) => setNomeDefunto(e.target.value)}
+                    className="w-full bg-slate-900 border border-purple-700/60 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-400"
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-purple-300 block mb-0.5">
+                    Data del decesso (opzionale, per calcolo trigesimi e anniversari):
+                  </label>
+                  <input
+                    type="date"
+                    value={dataMorte}
+                    onChange={(e) => setDataMorte(e.target.value)}
+                    className="bg-slate-900 border border-purple-700/60 rounded px-2.5 py-1.5 text-xs text-slate-100"
+                  />
+                </div>
               </div>
             )}
 
@@ -617,6 +647,64 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
                   onChange={(e) => setIntenzione(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
+              </div>
+            )}
+
+            {/* Requester of the intention */}
+            <div>
+              <label className="text-xs text-slate-300 block mb-1">
+                Richiesta da (famiglia o persona):
+              </label>
+              <input
+                type="text"
+                placeholder="es. Famiglia Rossi, i figli, la vedova, la comunità..."
+                value={richiedente}
+                onChange={(e) => setRichiedente(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+            </div>
+          </div>
+
+          {/* Section: Mass Offering / Stipend (Confidential) */}
+          <div className="bg-slate-800/40 p-3.5 rounded-lg border border-slate-700/50 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="text-xs font-medium text-amber-300/90 flex items-center space-x-1.5">
+                <span className="text-sm">🪙</span>
+                <span>OFFERTA / ELEMOSINA DELLA MESSA</span>
+                <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">Riservato</span>
+              </label>
+
+              <label className="flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={offertaLibera}
+                  onChange={(e) => {
+                    setOffertaLibera(e.target.checked);
+                    if (e.target.checked) setOfferta('');
+                  }}
+                  className="rounded bg-slate-900 border-slate-700 text-amber-600 focus:ring-0"
+                />
+                <span>Offerta libera / Senza elemosina</span>
+              </label>
+            </div>
+
+            {!offertaLibera && (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative w-36">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs sm:text-sm font-semibold">€</span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    placeholder="es. 10 o 15"
+                    value={offerta}
+                    onChange={(e) => setOfferta(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded pl-7 pr-2 py-1.5 text-xs sm:text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  />
+                </div>
+                <span className="text-[11px] text-slate-400 italic">
+                  Dato privato visibile solo a te per la rendicontazione diocesana
+                </span>
               </div>
             )}
           </div>

@@ -35,10 +35,16 @@ export interface Messa {
   intenzione: string;
   tipoIntenzione: TipoIntenzione;
   nomeDefunto: string;
+  dataMorte?: string; // YYYY-MM-DD opzionale per anniversari/trigesimi
+  richiedente?: string; // es. Famiglia Rossi, i figli, ecc.
+  offerta?: number | null; // importo elemosina/offerta in euro
+  offertaLibera?: boolean; // true se senza elemosina o offerta libera
   note: string;
   creatoIl: string;
   modificatoIl: string;
 }
+
+export type ThemeMode = 'dark' | 'light';
 
 export interface Luogo {
   id: string;

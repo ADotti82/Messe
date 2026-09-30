@@ -16,8 +16,11 @@ import {
   Wifi,
   WifiOff,
   Plus,
+  Sun,
+  Moon,
+  Printer,
 } from 'lucide-react';
-import { UserProfile, Impostazioni } from '../types';
+import { UserProfile, Impostazioni, ThemeMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface NavbarProps {
@@ -31,6 +34,9 @@ interface NavbarProps {
   settings: Impostazioni | null;
   isOnline: boolean;
   isDemo?: boolean;
+  theme?: ThemeMode;
+  onToggleTheme?: () => void;
+  onOpenSacristyPrint?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -44,6 +50,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   settings,
   isOnline,
   isDemo = false,
+  theme = 'dark',
+  onToggleTheme,
+  onOpenSacristyPrint,
 }) => {
   return (
     <>
@@ -149,6 +158,33 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {isOnline ? <Wifi className="w-3 h-3 text-emerald-400" /> : <WifiOff className="w-3 h-3 text-red-400" />}
                 <span>{isOnline ? 'Online' : 'Offline'}</span>
               </div>
+
+              {/* Sacristy Quick Print Button (Desktop) */}
+              {onOpenSacristyPrint && (
+                <button
+                  onClick={onOpenSacristyPrint}
+                  className="hidden lg:flex items-center space-x-1.5 p-1.5 px-2.5 text-amber-200 hover:text-white bg-slate-900 hover:bg-slate-800 rounded-lg border border-amber-600/30 text-xs font-medium transition-colors"
+                  title="Stampa foglio intenzioni per la sagrestia"
+                >
+                  <Printer className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Sagrestia</span>
+                </button>
+              )}
+
+              {/* Theme Toggle Button */}
+              {onToggleTheme && (
+                <button
+                  onClick={onToggleTheme}
+                  className="p-1.5 sm:p-2 text-slate-300 hover:text-amber-200 hover:bg-slate-800/60 rounded-lg transition-colors cursor-pointer"
+                  title={theme === 'dark' ? 'Passa alla Vista Chiara (Avorio)' : 'Passa alla Vista Notturna'}
+                >
+                  {theme === 'dark' ? (
+                    <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-300" />
+                  ) : (
+                    <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-300" />
+                  )}
+                </button>
+              )}
 
               {/* Guide Button */}
               <button

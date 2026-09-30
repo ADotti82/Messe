@@ -26,6 +26,10 @@ export const MESSE_HEADERS = [
   'note',
   'creatoIl',
   'modificatoIl',
+  'richiedente',
+  'offerta',
+  'offertaLibera',
+  'dataMorte',
 ];
 
 export const LUOGHI_HEADERS = [
@@ -339,6 +343,10 @@ export function rowToMessa(row: any[]): Messa {
     note: row[17] || '',
     creatoIl: row[18] || '',
     modificatoIl: row[19] || '',
+    richiedente: row[20] || '',
+    offerta: row[21] !== undefined && row[21] !== '' ? Number(row[21]) : null,
+    offertaLibera: row[22] === 'true' || row[22] === true,
+    dataMorte: row[23] || '',
   };
 }
 
@@ -367,6 +375,10 @@ export function messaToRow(m: Messa): any[] {
     m.note || '',
     m.creatoIl,
     m.modificatoIl,
+    m.richiedente || '',
+    m.offerta !== null && m.offerta !== undefined ? m.offerta : '',
+    m.offertaLibera ? 'true' : 'false',
+    m.dataMorte || '',
   ];
 }
 

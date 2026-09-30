@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   initAuth,
   googleSignIn,
@@ -29,6 +29,10 @@ import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { UserGuideModal } from './components/UserGuideModal';
 import { UnauthorizedDomainModal } from './components/UnauthorizedDomainModal';
 import { PWAInstallButton } from './components/PWAInstallButton';
+import { SacristyPrintModal } from './components/SacristyPrintModal';
+import { AnniversariesModal } from './components/AnniversariesModal';
+import { useTheme } from './hooks/useTheme';
+import { getAnniversariImminenti } from './services/anniversariesService';
 import { BackupPackage } from './services/exportBackupService';
 import { firebaseConfig } from './services/auth';
 import { ShieldCheck, HardDrive, CheckCircle2, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
@@ -55,12 +59,17 @@ export default function App() {
   // Navigation
   const [activeTab, setActiveTab] = useState<'registro' | 'calendario' | 'statistiche' | 'luoghi'>('registro');
 
+  // Theme hook
+  const { theme, toggleTheme } = useTheme();
+
   // Modals
   const [isNewMassOpen, setIsNewMassOpen] = useState<boolean>(false);
   const [editingMass, setEditingMass] = useState<Messa | null>(null);
   const [formInitialDate, setFormInitialDate] = useState<string | undefined>(undefined);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
+  const [isSacristyPrintOpen, setIsSacristyPrintOpen] = useState<boolean>(false);
+  const [isAnniversariesOpen, setIsAnniversariesOpen] = useState<boolean>(false);
 
   // Delete modal state
   const [massToDelete, setMassToDelete] = useState<Messa | null>(null);
@@ -395,6 +404,44 @@ export default function App() {
     setIsNewMassOpen(true);
   };
 
+  // Anniversaries and Trigesimi calculation
+  const anniversariImminenti = useMemo(() => {
+    return getAnniversariImminenti(messe);
+  }, [messe]);
+
+  const handleScheduleFromAnniversary = (
+    defunto: string,
+    dataSuggerita: string,
+    luogo?: string,
+    richiedente?: string
+  ) => {
+    setFormInitialDate(dataSuggerita);
+    setEditingMass({
+      id: '',
+      data: dataSuggerita,
+      ora: '18:30',
+      dataOra: `${dataSuggerita}T18:30:00`,
+      luogo: luogo || (luoghi[0]?.nome || ''),
+      indirizzo: '',
+      latitudine: null,
+      longitudine: null,
+      celebrazione: 'Messa di suffragio',
+      grado: 'Feriale',
+      tempoLiturgico: '',
+      settimanaLiturgica: '',
+      coloreLiturgico: 'Viola',
+      fonteCalendario: 'CalAPI',
+      tipoIntenzione: 'Per un defunto',
+      nomeDefunto: defunto,
+      richiedente: richiedente || '',
+      intenzione: 'Messa di suffragio',
+      note: '',
+      creatoIl: '',
+      modificatoIl: '',
+    });
+    setIsNewMassOpen(true);
+  };
+
   // -------------------------------------------------------------
   // RENDER: Loading Initial Auth
   // -------------------------------------------------------------
@@ -595,7 +642,7 @@ export default function App() {
   // RENDER: Authenticated Main Application View
   // -------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-800 selection:text-white w-full max-w-full overflow-x-hidden">
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'} flex flex-col font-sans selection:bg-amber-800 selection:text-white w-full max-w-full overflow-x-hidden`}>
       {/* Top Navigation */}
       <Navbar
         activeTab={activeTab}
@@ -608,6 +655,9 @@ export default function App() {
         settings={settings}
         isOnline={isOnline}
         isDemo={isDemo}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onOpenSacristyPrint={() => setIsSacristyPrintOpen(true)}
       />
 
       {/* Toast Notification */}
@@ -643,6 +693,9 @@ export default function App() {
             onEditMass={handleEditMass}
             onDeleteMass={(m) => setMassToDelete(m)}
             isLoading={isDataLoading}
+            onOpenSacristyPrint={() => setIsSacristyPrintOpen(true)}
+            onOpenAnniversaries={() => setIsAnniversariesOpen(true)}
+            anniversariCount={anniversariImminenti.length}
           />
         )}
 
@@ -695,6 +748,9 @@ export default function App() {
         onRestoreBackup={handleRestoreBackup}
         onResetArchive={handleResetArchive}
         isDemo={isDemo}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onOpenSacristyPrint={() => setIsSacristyPrintOpen(true)}
       />
 
       {/* 3. User Guide & Configuration Instructions Modal (Section 69) */}
@@ -721,6 +777,23 @@ export default function App() {
         title="Elimina luogo di celebrazione"
         message={`Vuoi eliminare "${placeToDelete?.name}" dall'elenco dei tuoi luoghi abituali?`}
         isDeleting={isDeleting}
+      />
+
+      {/* 6. Sacristy Print / PDF Modal */}
+      <SacristyPrintModal
+        isOpen={isSacristyPrintOpen}
+        onClose={() => setIsSacristyPrintOpen(false)}
+        messe={messe}
+        luoghi={luoghi}
+        settings={settings}
+      />
+
+      {/* 7. Anniversaries and Trigesimi Modal */}
+      <AnniversariesModal
+        isOpen={isAnniversariesOpen}
+        onClose={() => setIsAnniversariesOpen(false)}
+        anniversari={anniversariImminenti}
+        onScheduleMass={handleScheduleFromAnniversary}
       />
     </div>
   );

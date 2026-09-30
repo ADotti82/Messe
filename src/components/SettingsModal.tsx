@@ -18,8 +18,11 @@ import {
   AlertTriangle,
   Loader2,
   HardDrive,
+  Sun,
+  Moon,
+  Printer,
 } from 'lucide-react';
-import { Impostazioni, Messa, Luogo, UserProfile } from '../types';
+import { Impostazioni, Messa, Luogo, UserProfile, ThemeMode } from '../types';
 import {
   exportToCSV,
   exportToExcel,
@@ -41,6 +44,9 @@ interface SettingsModalProps {
   onRestoreBackup: (backup: BackupPackage) => Promise<void>;
   onResetArchive: () => Promise<void>;
   isDemo: boolean;
+  theme?: ThemeMode;
+  onToggleTheme?: () => void;
+  onOpenSacristyPrint?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -54,6 +60,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onRestoreBackup,
   onResetArchive,
   isDemo,
+  theme = 'dark',
+  onToggleTheme,
+  onOpenSacristyPrint,
 }) => {
   const [diocesi, setDiocesi] = useState<string>(settings?.diocesi || '');
   const [isSavingDiocese, setIsSavingDiocese] = useState<boolean>(false);
@@ -221,6 +230,51 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             )}
           </div>
 
+          {/* Appearance & Theme Section */}
+          <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/60 space-y-3">
+            <h3 className="font-serif font-semibold text-amber-200 text-sm flex items-center space-x-2">
+              <Sun className="w-4 h-4 text-amber-400" />
+              <span>ASPETTO E TEMA VISIVO</span>
+            </h3>
+            <p className="text-xs text-slate-400">
+              Scegli la modalità grafica più confortevole per la lettura e l'inserimento:
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => onToggleTheme && theme !== 'dark' && onToggleTheme()}
+                className={`p-3 rounded-lg border text-left flex items-center space-x-2.5 transition-all cursor-pointer ${
+                  theme === 'dark'
+                    ? 'bg-amber-950/60 border-amber-500 text-amber-200 shadow-sm'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Moon className="w-4 h-4 text-indigo-300 shrink-0" />
+                <div>
+                  <span className="font-semibold text-xs block">Vista Notturna</span>
+                  <span className="text-[10px] text-slate-400">Scura / Liturgica</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onToggleTheme && theme !== 'light' && onToggleTheme()}
+                className={`p-3 rounded-lg border text-left flex items-center space-x-2.5 transition-all cursor-pointer ${
+                  theme === 'light'
+                    ? 'bg-amber-950/60 border-amber-500 text-amber-200 shadow-sm'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Sun className="w-4 h-4 text-amber-400 shrink-0" />
+                <div>
+                  <span className="font-semibold text-xs block">Vista Chiara</span>
+                  <span className="text-[10px] text-slate-400">Carta / Avorio</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
           {/* Mobile App PWA Installation */}
           <PWAInstallButton variant="banner" />
 
@@ -301,6 +355,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <span>Esporta JSON</span>
               </button>
             </div>
+
+            {onOpenSacristyPrint && (
+              <div className="pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenSacristyPrint();
+                  }}
+                  className="w-full flex items-center justify-center space-x-2 p-2.5 bg-gradient-to-r from-red-800 to-amber-700 hover:from-red-700 hover:to-amber-600 text-amber-50 rounded-lg text-xs font-semibold shadow transition-all cursor-pointer"
+                >
+                  <Printer className="w-4 h-4 text-amber-200" />
+                  <span>Stampa Foglio Intenzioni per la Sagrestia (A4 / PDF)</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Backup & Restore Section */}

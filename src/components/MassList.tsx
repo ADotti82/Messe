@@ -19,6 +19,8 @@ import {
   ChevronDown,
   X,
   FileText,
+  Printer,
+  User,
 } from 'lucide-react';
 import { Messa, Luogo, FiltriRegistro, FiltroTemporale } from '../types';
 
@@ -29,6 +31,9 @@ interface MassListProps {
   onEditMass: (messa: Messa) => void;
   onDeleteMass: (messa: Messa) => void;
   isLoading: boolean;
+  onOpenSacristyPrint?: () => void;
+  onOpenAnniversaries?: () => void;
+  anniversariCount?: number;
 }
 
 export const MassList: React.FC<MassListProps> = ({
@@ -38,6 +43,9 @@ export const MassList: React.FC<MassListProps> = ({
   onEditMass,
   onDeleteMass,
   isLoading,
+  onOpenSacristyPrint,
+  onOpenAnniversaries,
+  anniversariCount = 0,
 }) => {
   // Search & Filter state
   const [filtri, setFiltri] = useState<FiltriRegistro>({
@@ -125,6 +133,7 @@ export const MassList: React.FC<MassListProps> = ({
           m.data.includes(query) ||
           (m.nomeDefunto && m.nomeDefunto.toLowerCase().includes(query)) ||
           (m.intenzione && m.intenzione.toLowerCase().includes(query)) ||
+          (m.richiedente && m.richiedente.toLowerCase().includes(query)) ||
           (m.note && m.note.toLowerCase().includes(query)) ||
           (m.indirizzo && m.indirizzo.toLowerCase().includes(query));
 
@@ -192,6 +201,38 @@ export const MassList: React.FC<MassListProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Quick Action Tools Bar: Sacristy Print & Anniversaries Promemoria */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 border border-slate-800 rounded-xl p-2.5 sm:p-3 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenSacristyPrint && (
+            <button
+              onClick={onOpenSacristyPrint}
+              className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-amber-200 px-3 py-1.5 rounded-lg text-xs font-medium border border-amber-600/30 transition-all shadow-xs cursor-pointer active:scale-95"
+              title="Stampa foglio intenzioni per la sagrestia o l'altare"
+            >
+              <Printer className="w-3.5 h-3.5 text-amber-400" />
+              <span>Foglio Sagrestia (Stampa/PDF)</span>
+            </button>
+          )}
+
+          {onOpenAnniversaries && (
+            <button
+              onClick={onOpenAnniversaries}
+              className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-purple-200 px-3 py-1.5 rounded-lg text-xs font-medium border border-purple-600/30 transition-all shadow-xs cursor-pointer active:scale-95"
+              title="Consulta trigesimi e anniversari dei defunti"
+            >
+              <span>✝️</span>
+              <span>Trigesimi & Anniversari</span>
+              {anniversariCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 rounded-full bg-red-800 text-white font-mono text-[10px] font-bold">
+                  {anniversariCount}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Search & Filter Header Bar */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 sm:p-4 shadow-sm">
         <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between">
@@ -461,7 +502,22 @@ export const MassList: React.FC<MassListProps> = ({
                           {m.intenzione && m.tipoIntenzione === 'Per un defunto' && (
                             <p className="text-slate-400 mt-0.5 italic">{m.intenzione}</p>
                           )}
+
+                          {m.richiedente && (
+                            <div className="flex items-center space-x-1.5 text-xs text-slate-300 mt-1.5 pt-1.5 border-t border-slate-800">
+                              <User className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                              <span>Richiesta da: <strong className="text-amber-200">{m.richiedente}</strong></span>
+                            </div>
+                          )}
                         </div>
+                      </div>
+                    )}
+
+                    {/* Offering badge if present */}
+                    {(m.offerta !== null && m.offerta !== undefined || m.offertaLibera) && (
+                      <div className="inline-flex items-center space-x-1.5 text-[11px] bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 text-amber-300/90 mt-1">
+                        <span>🪙</span>
+                        <span>{m.offertaLibera ? 'Offerta libera / Senza elemosina' : `Elemosina: €${m.offerta}`}</span>
                       </div>
                     )}
 
