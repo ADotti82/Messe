@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Loader2,
   BookmarkCheck,
+  BookOpen,
 } from 'lucide-react';
 import {
   Messa,
@@ -37,6 +38,7 @@ interface MassFormModalProps {
   editingMass?: Messa | null;
   initialDate?: string;
   frequentPlaces: Luogo[];
+  onOpenReadings?: (dateStr: string) => void;
 }
 
 const INTENTIONS_LIST: { id: TipoIntenzione; label: string; icon: string }[] = [
@@ -57,6 +59,7 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
   editingMass,
   initialDate,
   frequentPlaces,
+  onOpenReadings,
 }) => {
   // Format helpers
   const getTodayStr = () => new Date().toISOString().split('T')[0];
@@ -92,6 +95,7 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
   const [dataMorte, setDataMorte] = useState<string>('');
   const [offerta, setOfferta] = useState<string>('');
   const [offertaLibera, setOffertaLibera] = useState<boolean>(false);
+  const [showStipendDetails, setShowStipendDetails] = useState<boolean>(false);
 
   // UI status
   const [isGpsLoading, setIsGpsLoading] = useState<boolean>(false);
@@ -128,6 +132,7 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
       setDataMorte(editingMass.dataMorte || '');
       setOfferta(editingMass.offerta !== undefined && editingMass.offerta !== null ? String(editingMass.offerta) : '');
       setOffertaLibera(Boolean(editingMass.offertaLibera));
+      setShowStipendDetails(Boolean((editingMass.offerta !== undefined && editingMass.offerta !== null && editingMass.offerta !== 0) || editingMass.offertaLibera));
     } else {
       const targetDate = initialDate || getTodayStr();
       setData(targetDate);
@@ -152,6 +157,7 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
       setDataMorte('');
       setOfferta('');
       setOffertaLibera(false);
+      setShowStipendDetails(false);
 
       // Load liturgical day for the selected date
       loadLiturgyForDate(targetDate);
@@ -517,6 +523,19 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
                     Fonte: {fonteCalendario}
                   </span>
                 </div>
+
+                {onOpenReadings && (
+                  <div className="pt-2 border-t border-slate-800 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => onOpenReadings(data)}
+                      className="flex items-center space-x-1.5 text-xs text-amber-300 hover:text-amber-200 bg-amber-950/40 hover:bg-amber-900/60 border border-amber-700/50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+                      <span>📖 Leggi le letture della Messa</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               /* Editable Liturgy Fields */
@@ -665,49 +684,78 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
             </div>
           </div>
 
-          {/* Section: Mass Offering / Stipend (Confidential) */}
-          <div className="bg-slate-800/40 p-3.5 rounded-lg border border-slate-700/50 space-y-2.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="text-xs font-medium text-amber-300/90 flex items-center space-x-1.5">
-                <span className="text-sm">🪙</span>
-                <span>OFFERTA / ELEMOSINA DELLA MESSA</span>
-                <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">Riservato</span>
-              </label>
-
-              <label className="flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={offertaLibera}
-                  onChange={(e) => {
-                    setOffertaLibera(e.target.checked);
-                    if (e.target.checked) setOfferta('');
-                  }}
-                  className="rounded bg-slate-900 border-slate-700 text-amber-600 focus:ring-0"
-                />
-                <span>Offerta libera / Senza elemosina</span>
-              </label>
+          {/* Section: Mass Offering / Stipend (Discreet & Collapsible) */}
+          {!showStipendDetails ? (
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setShowStipendDetails(true)}
+                className="text-xs text-slate-400 hover:text-amber-300 py-1 flex items-center space-x-1.5 transition-colors cursor-pointer"
+              >
+                <span>🪙</span>
+                <span className="underline decoration-dotted">Opzione riservata: registra offerta o elemosina...</span>
+              </button>
             </div>
+          ) : (
+            <div className="bg-slate-800/40 p-3.5 rounded-lg border border-slate-700/50 space-y-2.5 animate-in fade-in duration-150">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-xs font-medium text-amber-300/90 flex items-center space-x-1.5">
+                  <span className="text-sm">🪙</span>
+                  <span>OFFERTA / ELEMOSINA DELLA MESSA</span>
+                  <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">Riservato</span>
+                </label>
 
-            {!offertaLibera && (
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative w-36">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs sm:text-sm font-semibold">€</span>
-                  <input
-                    type="number"
-                    step="1"
-                    min="0"
-                    placeholder="es. 10 o 15"
-                    value={offerta}
-                    onChange={(e) => setOfferta(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded pl-7 pr-2 py-1.5 text-xs sm:text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                  />
+                <div className="flex items-center space-x-3">
+                  <label className="flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={offertaLibera}
+                      onChange={(e) => {
+                        setOffertaLibera(e.target.checked);
+                        if (e.target.checked) setOfferta('');
+                      }}
+                      className="rounded bg-slate-900 border-slate-700 text-amber-600 focus:ring-0"
+                    />
+                    <span>Offerta libera / Senza</span>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!offerta && !offertaLibera) {
+                        setShowStipendDetails(false);
+                      } else {
+                        setShowStipendDetails(false);
+                      }
+                    }}
+                    className="text-[10px] text-slate-400 hover:text-slate-200 underline"
+                  >
+                    Riduci
+                  </button>
                 </div>
-                <span className="text-[11px] text-slate-400 italic">
-                  Dato privato visibile solo a te per la rendicontazione diocesana
-                </span>
               </div>
-            )}
-          </div>
+
+              {!offertaLibera && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative w-36">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs sm:text-sm font-semibold">€</span>
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      placeholder="es. 10 o 15"
+                      value={offerta}
+                      onChange={(e) => setOfferta(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded pl-7 pr-2 py-1.5 text-xs sm:text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                  <span className="text-[11px] text-slate-400 italic">
+                    Dato privato personale per la rendicontazione
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Section: Notes */}
           <div className="bg-slate-800/40 p-3.5 rounded-lg border border-slate-700/50 space-y-1">

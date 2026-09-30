@@ -21,6 +21,7 @@ import {
   FileText,
   Printer,
   User,
+  BookOpen,
 } from 'lucide-react';
 import { Messa, Luogo, FiltriRegistro, FiltroTemporale } from '../types';
 
@@ -34,6 +35,7 @@ interface MassListProps {
   onOpenSacristyPrint?: () => void;
   onOpenAnniversaries?: () => void;
   anniversariCount?: number;
+  onOpenReadings?: (dateStr?: string) => void;
 }
 
 export const MassList: React.FC<MassListProps> = ({
@@ -46,6 +48,7 @@ export const MassList: React.FC<MassListProps> = ({
   onOpenSacristyPrint,
   onOpenAnniversaries,
   anniversariCount = 0,
+  onOpenReadings,
 }) => {
   // Search & Filter state
   const [filtri, setFiltri] = useState<FiltriRegistro>({
@@ -228,6 +231,17 @@ export const MassList: React.FC<MassListProps> = ({
                   {anniversariCount}
                 </span>
               )}
+            </button>
+          )}
+
+          {onOpenReadings && (
+            <button
+              onClick={() => onOpenReadings()}
+              className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-amber-200 px-3 py-1.5 rounded-lg text-xs font-medium border border-amber-600/30 transition-all shadow-xs cursor-pointer active:scale-95"
+              title="Leggi le letture della Messa del giorno (CEI)"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+              <span>Letture del Giorno</span>
             </button>
           )}
         </div>
@@ -510,14 +524,6 @@ export const MassList: React.FC<MassListProps> = ({
                             </div>
                           )}
                         </div>
-                      </div>
-                    )}
-
-                    {/* Offering badge if present */}
-                    {(m.offerta !== null && m.offerta !== undefined || m.offertaLibera) && (
-                      <div className="inline-flex items-center space-x-1.5 text-[11px] bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 text-amber-300/90 mt-1">
-                        <span>🪙</span>
-                        <span>{m.offertaLibera ? 'Offerta libera / Senza elemosina' : `Elemosina: €${m.offerta}`}</span>
                       </div>
                     )}
 

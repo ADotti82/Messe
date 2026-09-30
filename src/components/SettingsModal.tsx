@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   X,
   Settings,
@@ -21,6 +21,9 @@ import {
   Sun,
   Moon,
   Printer,
+  Eye,
+  EyeOff,
+  Lock,
 } from 'lucide-react';
 import { Impostazioni, Messa, Luogo, UserProfile, ThemeMode } from '../types';
 import {
@@ -79,6 +82,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
   const [confirmInput, setConfirmInput] = useState<string>('');
   const [isDeletingArchive, setIsDeletingArchive] = useState<boolean>(false);
+
+  // Confidential stipends accounting state (hidden by default)
+  const [showStipendsReport, setShowStipendsReport] = useState<boolean>(false);
+
+  const stipendsStats = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    let monthTotal = 0;
+    let yearTotal = 0;
+    let withStipend = 0;
+    let freeStipend = 0;
+
+    for (const m of messe) {
+      if (m.offertaLibera) {
+        freeStipend++;
+      } else if (m.offerta && m.offerta > 0) {
+        withStipend++;
+        const [y, mo] = m.data.split('-').map(Number);
+        if (y === currentYear) {
+          yearTotal += m.offerta;
+          if (mo === currentMonth) {
+            monthTotal += m.offerta;
+          }
+        }
+      }
+    }
+
+    return { monthTotal, yearTotal, withStipend, freeStipend, currentYear };
+  }, [messe]);
 
   if (!isOpen) return null;
 
@@ -318,6 +351,86 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Confidential Mass Stipends / Offerings Accounting (Separated from general statistics) */}
+          <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/60 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center space-x-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-950/80 border border-amber-600/40 flex items-center justify-center text-amber-300">
+                  <Lock className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-semibold text-amber-200 text-sm">
+                    RENDICONTAZIONE RISERVATA ELEMOSINE / OFFERTE
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Sezione separata per il conteggio personale secondo le disposizioni diocesane
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowStipendsReport(!showStipendsReport)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-amber-300 rounded-lg transition-colors cursor-pointer"
+              >
+                {showStipendsReport ? (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5" />
+                    <span>Nascondi dati</span>
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Visualizza conteggio</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {showStipendsReport ? (
+              <div className="pt-2 space-y-3 animate-in fade-in duration-200">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                    <span className="text-[11px] text-slate-400 block">Questo mese</span>
+                    <span className="text-base sm:text-xl font-bold font-mono text-emerald-400">
+                      €{stipendsStats.monthTotal}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                    <span className="text-[11px] text-slate-400 block">Anno {stipendsStats.currentYear}</span>
+                    <span className="text-base sm:text-xl font-bold font-mono text-emerald-400">
+                      €{stipendsStats.yearTotal}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                    <span className="text-[11px] text-slate-400 block">Con offerta</span>
+                    <span className="text-base sm:text-xl font-bold font-mono text-amber-300">
+                      {stipendsStats.withStipend}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                    <span className="text-[11px] text-slate-400 block">Offerta libera / Senza</span>
+                    <span className="text-base sm:text-xl font-bold font-mono text-slate-300">
+                      {stipendsStats.freeStipend}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-slate-500 italic">
+                  I dati sono archiviati unicamente nel tuo foglio Google Drive privato e rimangono protetti durante la normale consultazione del registro.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/80 text-xs text-slate-400 flex items-center justify-between">
+                <span>Dati e cifre monetarie protette e non visibili a schermo.</span>
+                <span className="text-[11px] text-amber-400 font-mono">🔒 Protetto</span>
+              </div>
+            )}
           </div>
 
           {/* Data Export Section */}

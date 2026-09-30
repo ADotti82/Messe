@@ -37,6 +37,7 @@ interface NavbarProps {
   theme?: ThemeMode;
   onToggleTheme?: () => void;
   onOpenSacristyPrint?: () => void;
+  onOpenReadings?: (dateStr?: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -53,6 +54,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   theme = 'dark',
   onToggleTheme,
   onOpenSacristyPrint,
+  onOpenReadings,
 }) => {
   return (
     <>
@@ -168,6 +170,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Printer className="w-3.5 h-3.5 text-amber-400" />
                   <span>Sagrestia</span>
+                </button>
+              )}
+
+              {/* Daily Readings Button */}
+              {onOpenReadings && (
+                <button
+                  onClick={() => onOpenReadings()}
+                  className="hidden md:flex items-center space-x-1.5 p-1.5 px-2.5 text-amber-200 hover:text-white bg-slate-900 hover:bg-slate-800 rounded-lg border border-amber-600/30 text-xs font-medium transition-colors cursor-pointer"
+                  title="Consulta le letture della Messa del giorno"
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Letture</span>
                 </button>
               )}
 

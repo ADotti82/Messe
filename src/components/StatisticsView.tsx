@@ -33,13 +33,8 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({ messe, luoghi })
     let countDefunti = 0;
     let countWithIntention = 0;
     let countNoIntention = 0;
-    let totaleOfferteMese = 0;
-    let totaleOfferteAnno = 0;
-    let countConOfferta = 0;
-    let countOffertaLibera = 0;
 
     const placesMap = new Map<string, number>();
-    const richiedentiMap = new Map<string, number>();
     const monthDistribution = new Array(12).fill(0); // 0 to 11
     const weekdayDistribution = [0, 0, 0, 0, 0, 0, 0]; // 0=Sun, 1=Mon, ..., 6=Sat
     const colorsMap = new Map<string, number>();
@@ -82,32 +77,11 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({ messe, luoghi })
       colorsMap.set(color, (colorsMap.get(color) || 0) + 1);
 
       // Offerings
-      if (m.offertaLibera) {
-        countOffertaLibera++;
-      } else if (m.offerta && m.offerta > 0) {
-        countConOfferta++;
-        if (y === currentYear) {
-          totaleOfferteAnno += m.offerta;
-          if (mo === currentMonth) {
-            totaleOfferteMese += m.offerta;
-          }
-        }
-      }
-
-      // Requesters
-      if (m.richiedente?.trim()) {
-        const req = m.richiedente.trim();
-        richiedentiMap.set(req, (richiedentiMap.get(req) || 0) + 1);
-      }
     }
 
     // Top places sorted
     const topPlaces = Array.from(placesMap.entries())
       .map(([nome, count]) => ({ nome, count }))
-      .sort((a, b) => b.count - a.count);
-
-    const topRichiedenti: { nome: string; count: number }[] = Array.from(richiedentiMap.entries())
-      .map(([nome, count]: [string, number]) => ({ nome, count }))
       .sort((a, b) => b.count - a.count);
 
     return {
@@ -118,11 +92,6 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({ messe, luoghi })
       countWithIntention,
       countNoIntention,
       topPlaces,
-      topRichiedenti,
-      totaleOfferteMese,
-      totaleOfferteAnno,
-      countConOfferta,
-      countOffertaLibera,
       monthDistribution,
       weekdayDistribution,
       colorsDistribution: Array.from(colorsMap.entries()).map(([colore, count]) => ({
@@ -213,66 +182,6 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({ messe, luoghi })
               : '0%'}
           </p>
         </div>
-      </div>
-
-      {/* Confidential Mass Stipends & Offerings Card */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-serif font-bold text-amber-200 flex items-center space-x-2">
-            <span>🪙</span>
-            <span>RIEPILOGO RISERVATO ELEMOSINE E OFFERTE DELLE MESSE</span>
-          </h3>
-          <span className="text-[10px] bg-amber-950 text-amber-300 font-mono px-2 py-0.5 rounded border border-amber-800/60">
-            Uso Personale Riservato
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-            <span className="text-[11px] text-slate-400 block">Totale questo mese</span>
-            <span className="text-lg sm:text-2xl font-bold font-mono text-emerald-400">
-              €{stats.totaleOfferteMese}
-            </span>
-          </div>
-
-          <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-            <span className="text-[11px] text-slate-400 block">Totale anno {currentYear}</span>
-            <span className="text-lg sm:text-2xl font-bold font-mono text-emerald-400">
-              €{stats.totaleOfferteAnno}
-            </span>
-          </div>
-
-          <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-            <span className="text-[11px] text-slate-400 block">Messe con elemosina</span>
-            <span className="text-lg sm:text-2xl font-bold font-mono text-amber-300">
-              {stats.countConOfferta}
-            </span>
-          </div>
-
-          <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-            <span className="text-[11px] text-slate-400 block">Offerta libera / Senza</span>
-            <span className="text-lg sm:text-2xl font-bold font-mono text-slate-300">
-              {stats.countOffertaLibera}
-            </span>
-          </div>
-        </div>
-
-        {stats.topRichiedenti.length > 0 && (
-          <div className="pt-3 border-t border-slate-800/80">
-            <span className="text-xs font-semibold text-slate-300 block mb-2">
-              Famiglie o persone con più intenzioni richieste:
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {stats.topRichiedenti.slice(0, 8).map((r) => (
-                <span key={r.nome} className="text-xs bg-slate-950 text-slate-200 px-2.5 py-1 rounded-md border border-slate-800 flex items-center space-x-1.5">
-                  <span className="text-amber-400 text-xs">👤</span>
-                  <span className="font-medium">{r.nome}</span>
-                  <span className="text-slate-500 font-mono text-[10px]">({r.count} Messe)</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

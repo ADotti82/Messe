@@ -31,6 +31,7 @@ import { UnauthorizedDomainModal } from './components/UnauthorizedDomainModal';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { SacristyPrintModal } from './components/SacristyPrintModal';
 import { AnniversariesModal } from './components/AnniversariesModal';
+import { ReadingsModal } from './components/ReadingsModal';
 import { useTheme } from './hooks/useTheme';
 import { getAnniversariImminenti } from './services/anniversariesService';
 import { BackupPackage } from './services/exportBackupService';
@@ -70,6 +71,8 @@ export default function App() {
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
   const [isSacristyPrintOpen, setIsSacristyPrintOpen] = useState<boolean>(false);
   const [isAnniversariesOpen, setIsAnniversariesOpen] = useState<boolean>(false);
+  const [isReadingsOpen, setIsReadingsOpen] = useState<boolean>(false);
+  const [readingsDate, setReadingsDate] = useState<string | undefined>(undefined);
 
   // Delete modal state
   const [massToDelete, setMassToDelete] = useState<Messa | null>(null);
@@ -442,6 +445,11 @@ export default function App() {
     setIsNewMassOpen(true);
   };
 
+  const handleOpenReadings = (dateStr?: string) => {
+    setReadingsDate(dateStr || new Date().toISOString().split('T')[0]);
+    setIsReadingsOpen(true);
+  };
+
   // -------------------------------------------------------------
   // RENDER: Loading Initial Auth
   // -------------------------------------------------------------
@@ -658,6 +666,7 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenSacristyPrint={() => setIsSacristyPrintOpen(true)}
+        onOpenReadings={handleOpenReadings}
       />
 
       {/* Toast Notification */}
@@ -696,6 +705,7 @@ export default function App() {
             onOpenSacristyPrint={() => setIsSacristyPrintOpen(true)}
             onOpenAnniversaries={() => setIsAnniversariesOpen(true)}
             anniversariCount={anniversariImminenti.length}
+            onOpenReadings={handleOpenReadings}
           />
         )}
 
@@ -734,6 +744,7 @@ export default function App() {
         editingMass={editingMass}
         initialDate={formInitialDate}
         frequentPlaces={luoghi}
+        onOpenReadings={handleOpenReadings}
       />
 
       {/* 2. Settings & Backup Modal */}
@@ -794,6 +805,13 @@ export default function App() {
         onClose={() => setIsAnniversariesOpen(false)}
         anniversari={anniversariImminenti}
         onScheduleMass={handleScheduleFromAnniversary}
+      />
+
+      {/* 8. Daily Liturgical Readings Modal */}
+      <ReadingsModal
+        isOpen={isReadingsOpen}
+        onClose={() => setIsReadingsOpen(false)}
+        initialDate={readingsDate}
       />
     </div>
   );
