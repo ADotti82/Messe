@@ -145,18 +145,6 @@ export const initAuth = (
     cachedAccessToken = saved.accessToken;
     // Notify application immediately so priest does not have to login again
     callback(saved.user, saved.accessToken, false);
-
-    // If token is expired or close to expiring, attempt silent refresh in background
-    if (Date.now() > saved.expiresAt) {
-      silentRefreshToken().then((freshToken) => {
-        if (freshToken) {
-          saveSession(saved.user, freshToken, 3600, saved.authMethod);
-          callback(saved.user, freshToken, false);
-        }
-      }).catch(() => {
-        console.warn('Background token refresh was silent.');
-      });
-    }
   }
 
   // 2. Listen to Firebase auth state
@@ -189,165 +177,135 @@ export const initAuth = (
 };
 
 /**
- * Attempt silent background refresh of Google OAuth token using GIS
+ * Direct Google Identity Services (GIS) Token Client
+ * Must be invoked directly on user interaction (e.g. click event) to prevent popup blocker
  */
-export const silentRefreshToken = async (): Promise<string | null> => {
-  return new Promise((resolve) => {
-    // @ts-ignore
-    const google = window.google;
-    if (!google?.accounts?.oauth2) {
-      return resolve(null);
-    }
+let gisTokenClient: any = null;
+let gisResolve: ((value: { user: UserProfile; accessToken: string }) => void) | null = null;
+let gisReject: ((reason?: any) => void) | null = null;
 
-    try {
-      const tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: firebaseConfig.oAuthClientId,
-        scope:
-          'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
-        callback: (tokenResponse: any) => {
-          if (tokenResponse?.access_token) {
-            resolve(tokenResponse.access_token);
-          } else {
-            resolve(null);
-          }
-        },
-      });
+const ensureGISInitialized = () => {
+  // @ts-ignore
+  const google = window.google;
+  if (!google?.accounts?.oauth2 || gisTokenClient) return;
 
-      // Request without prompt for silent refresh
-      tokenClient.requestAccessToken({ prompt: '' });
-    } catch {
-      resolve(null);
-    }
+  gisTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: firebaseConfig.oAuthClientId,
+    scope:
+      'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
+    callback: async (tokenResponse: any) => {
+      if (tokenResponse.error) {
+        if (gisReject) gisReject(new Error(tokenResponse.error_description || tokenResponse.error));
+        return;
+      }
+      if (!tokenResponse.access_token) {
+        if (gisReject) gisReject(new Error('Nessun token di accesso ricevuto da Google.'));
+        return;
+      }
+
+      const accessToken = tokenResponse.access_token;
+      const expiresIn = tokenResponse.expires_in ? Number(tokenResponse.expires_in) : 3600;
+
+      try {
+        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        let profile: UserProfile;
+        if (res.ok) {
+          const data = await res.json();
+          profile = {
+            uid: data.sub || data.id,
+            email: data.email,
+            displayName: data.name || `${data.given_name || ''} ${data.family_name || ''}`.trim() || 'Sacerdote',
+            photoURL: data.picture,
+          };
+        } else {
+          profile = {
+            uid: 'google-user-' + Date.now(),
+            email: null,
+            displayName: 'Sacerdote',
+            photoURL: null,
+          };
+        }
+
+        saveSession(profile, accessToken, expiresIn, 'gis');
+        if (gisResolve) gisResolve({ user: profile, accessToken });
+      } catch (e) {
+        const fallbackProfile: UserProfile = {
+          uid: 'google-user-' + Date.now(),
+          email: null,
+          displayName: 'Sacerdote',
+          photoURL: null,
+        };
+        saveSession(fallbackProfile, accessToken, expiresIn, 'gis');
+        if (gisResolve) gisResolve({ user: fallbackProfile, accessToken });
+      }
+    },
   });
 };
 
-/**
- * Direct Google Identity Services (GIS) Token Client fallback
- * Bypasses Firebase domain whitelist if GIS is allowed
- */
-export const signInWithGIS = async (): Promise<{ user: UserProfile; accessToken: string }> => {
+export const signInWithGIS = (): Promise<{ user: UserProfile; accessToken: string }> => {
   return new Promise((resolve, reject) => {
+    gisResolve = resolve;
+    gisReject = reject;
+
     // @ts-ignore
     const google = window.google;
     if (!google?.accounts?.oauth2) {
-      return reject(new Error('GIS_NOT_LOADED'));
+      return reject(new Error('Google Identity Services non è ancora caricato. Riprova tra un istante.'));
     }
 
-    try {
-      const tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: firebaseConfig.oAuthClientId,
-        scope:
-          'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
-        callback: async (tokenResponse: any) => {
-          if (tokenResponse.error) {
-            return reject(new Error(tokenResponse.error_description || tokenResponse.error));
-          }
-          if (!tokenResponse.access_token) {
-            return reject(new Error('Nessun token di accesso ricevuto da Google.'));
-          }
+    ensureGISInitialized();
 
-          const accessToken = tokenResponse.access_token;
-          const expiresIn = tokenResponse.expires_in ? Number(tokenResponse.expires_in) : 3600;
-
-          try {
-            // Fetch priest profile from Google OAuth userinfo endpoint
-            const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-              headers: { Authorization: `Bearer ${accessToken}` },
-            });
-            if (res.ok) {
-              const data = await res.json();
-              const profile: UserProfile = {
-                uid: data.sub || data.id,
-                email: data.email,
-                displayName: data.name || `${data.given_name || ''} ${data.family_name || ''}`.trim() || 'Sacerdote',
-                photoURL: data.picture,
-              };
-
-              saveSession(profile, accessToken, expiresIn, 'gis');
-              resolve({ user: profile, accessToken });
-            } else {
-              const fallbackProfile: UserProfile = {
-                uid: 'google-user-' + Date.now(),
-                email: null,
-                displayName: 'Sacerdote',
-                photoURL: null,
-              };
-              saveSession(fallbackProfile, accessToken, expiresIn, 'gis');
-              resolve({ user: fallbackProfile, accessToken });
-            }
-          } catch (e) {
-            const fallbackProfile: UserProfile = {
-              uid: 'google-user-' + Date.now(),
-              email: null,
-              displayName: 'Sacerdote',
-              photoURL: null,
-            };
-            saveSession(fallbackProfile, accessToken, expiresIn, 'gis');
-            resolve({ user: fallbackProfile, accessToken });
-          }
-        },
-      });
-
-      tokenClient.requestAccessToken({ prompt: 'select_account' });
-    } catch (e) {
-      reject(e);
+    if (!gisTokenClient) {
+      return reject(new Error('Impossibile inizializzare il client Google OAuth.'));
     }
+
+    // Crucial: requestAccessToken is called synchronously in the user gesture stack trace
+    gisTokenClient.requestAccessToken({ prompt: 'select_account' });
   });
 };
 
 /**
- * Perform Google Sign In with Firebase Popup, with automatic fallback to GIS
+ * Perform Google Sign In with Firebase Popup (as specified in workspace-integration skill)
  */
 export const googleSignIn = async (): Promise<{ user: UserProfile; accessToken: string }> => {
   try {
     isSigningIn = true;
     setDemoMode(false);
 
-    // 1. Try Firebase signInWithPopup
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
 
-      if (!credential?.accessToken) {
-        throw new Error(
-          'Google non ha restituito il token di accesso. Assicurati di accettare i permessi di Google Drive e Fogli.'
-        );
-      }
-
-      const profile: UserProfile = {
-        uid: result.user.uid,
-        email: result.user.email,
-        displayName: result.user.displayName,
-        photoURL: result.user.photoURL,
-      };
-
-      saveSession(profile, credential.accessToken, 3600, 'firebase');
-      return { user: profile, accessToken: credential.accessToken };
-    } catch (firebaseErr: any) {
-      // If error is unauthorized-domain, try Google Identity Services as fallback
-      if (
-        firebaseErr.code === 'auth/unauthorized-domain' ||
-        firebaseErr.message?.includes('unauthorized-domain')
-      ) {
-        console.warn('Firebase unauthorized-domain detected. Attempting GIS fallback...');
-        try {
-          return await signInWithGIS();
-        } catch (gisErr: any) {
-          console.warn('GIS fallback also threw:', gisErr);
-          const err = new Error(
-            `Il dominio corrente (${window.location.hostname}) non è autorizzato in Firebase.`
-          );
-          (err as any).code = 'auth/unauthorized-domain';
-          (err as any).domain = window.location.hostname;
-          (err as any).projectId = firebaseConfig.projectId;
-          throw err;
-        }
-      }
-      throw firebaseErr;
+    if (!credential?.accessToken) {
+      throw new Error(
+        'Google non ha restituito il token di accesso. Assicurati di accettare i permessi di Google Drive e Fogli.'
+      );
     }
-  } catch (error: any) {
-    console.error('Errore durante il login con Google:', error);
-    throw error;
+
+    const profile: UserProfile = {
+      uid: result.user.uid,
+      email: result.user.email,
+      displayName: result.user.displayName,
+      photoURL: result.user.photoURL,
+    };
+
+    saveSession(profile, credential.accessToken, 3600, 'firebase');
+    return { user: profile, accessToken: credential.accessToken };
+  } catch (firebaseErr: any) {
+    if (
+      firebaseErr.code === 'auth/unauthorized-domain' ||
+      firebaseErr.message?.includes('unauthorized-domain')
+    ) {
+      const err = new Error(
+        `Il dominio corrente (${window.location.hostname}) non è ancora nei domini autorizzati di Firebase.`
+      );
+      (err as any).code = 'auth/unauthorized-domain';
+      (err as any).domain = window.location.hostname;
+      (err as any).projectId = firebaseConfig.projectId;
+      throw err;
+    }
+    throw firebaseErr;
   } finally {
     isSigningIn = false;
   }

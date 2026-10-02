@@ -22,6 +22,7 @@ interface UnauthorizedDomainModalProps {
   projectId: string;
   onRetry: () => void;
   onDemoLogin: () => void;
+  onGISLogin?: () => void;
 }
 
 export const UnauthorizedDomainModal: React.FC<UnauthorizedDomainModalProps> = ({
@@ -31,6 +32,7 @@ export const UnauthorizedDomainModal: React.FC<UnauthorizedDomainModalProps> = (
   projectId,
   onRetry,
   onDemoLogin,
+  onGISLogin,
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
 
@@ -132,15 +134,29 @@ export const UnauthorizedDomainModal: React.FC<UnauthorizedDomainModalProps> = (
             </ol>
           </div>
 
-          {/* Direct CTA link */}
-          <div className="pt-1">
+          {/* Direct CTA links */}
+          <div className="pt-1 space-y-2.5">
+            {onGISLogin && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onGISLogin();
+                }}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center space-x-2 text-xs sm:text-sm cursor-pointer"
+              >
+                <span>⚡ Accedi subito con Google Identity (Senza attendere Firebase)</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+
             <a
               href={firebaseSettingsUrl}
               target="_blank"
               rel="noreferrer"
-              className="w-full bg-gradient-to-r from-amber-700 to-amber-600 hover:from-amber-600 hover:to-amber-500 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition-all flex items-center justify-center space-x-2 text-sm"
+              className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2.5 px-4 rounded-xl border border-slate-700 transition-all flex items-center justify-center space-x-2 text-xs sm:text-sm"
             >
-              <span>1. Apri Console Firebase (Domini Autorizzati)</span>
+              <span>Apri Console Firebase (Aggiungi dominio autorizzato)</span>
               <ExternalLink className="w-4 h-4" />
             </a>
           </div>
