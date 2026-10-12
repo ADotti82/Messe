@@ -17,7 +17,14 @@ import {
   GoogleSheetsRepository,
   LocalDemoRepository,
 } from './services/dataRepository';
-import { Messa, Luogo, Impostazioni, UserProfile } from './types';
+import { Messa, Luogo, Impostazioni, UserProfile, GoogleCalendarEvent } from './types';
+import {
+  getOrCreateRegistroMesseCalendar,
+  fetchAllCalendarEvents,
+  createMassCalendarEvent,
+  updateMassCalendarEvent,
+  deleteMassCalendarEvent,
+} from './services/googleCalendarService';
 import { Navbar } from './components/Navbar';
 import { MassList } from './components/MassList';
 import { MassFormModal } from './components/MassFormModal';
@@ -74,6 +81,11 @@ export default function App() {
   const [isAnniversariesOpen, setIsAnniversariesOpen] = useState<boolean>(false);
   const [isReadingsOpen, setIsReadingsOpen] = useState<boolean>(false);
   const [readingsDate, setReadingsDate] = useState<string | undefined>(undefined);
+
+  // Google Calendar integration state
+  const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEvent[]>([]);
+  const [isCalendarLoading, setIsCalendarLoading] = useState<boolean>(false);
+  const [googleCalendarId, setGoogleCalendarId] = useState<string | null>(null);
 
   // Delete modal state
   const [massToDelete, setMassToDelete] = useState<Messa | null>(null);
@@ -168,6 +180,41 @@ export default function App() {
       loadArchiveAndData(repository);
     }
   }, [repository, loadArchiveAndData]);
+
+  // Load Google Calendar Events
+  const loadGoogleEvents = useCallback(
+    async (authToken?: string, calId?: string) => {
+      const activeToken = authToken || token;
+      if (!activeToken) return;
+
+      setIsCalendarLoading(true);
+      try {
+        let targetCalId = calId || googleCalendarId;
+        if (!targetCalId) {
+          targetCalId = await getOrCreateRegistroMesseCalendar(activeToken);
+          setGoogleCalendarId(targetCalId);
+        }
+
+        const now = new Date();
+        const timeMin = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+        const timeMax = new Date(now.getFullYear(), now.getMonth() + 4, 0).toISOString();
+
+        const events = await fetchAllCalendarEvents(activeToken, timeMin, timeMax, targetCalId);
+        setGoogleEvents(events);
+      } catch (err: any) {
+        console.warn('Errore caricamento eventi Google Calendar:', err);
+      } finally {
+        setIsCalendarLoading(false);
+      }
+    },
+    [token, googleCalendarId]
+  );
+
+  useEffect(() => {
+    if (token) {
+      loadGoogleEvents(token);
+    }
+  }, [token, loadGoogleEvents]);
 
   const [isDomainModalOpen, setIsDomainModalOpen] = useState<boolean>(false);
   const [unauthorizedDomain, setUnauthorizedDomain] = useState<string>(
@@ -278,21 +325,64 @@ export default function App() {
     }
   };
 
-  // Save Mass handler (create or update)
+  // Save Mass handler (create or update with Google Calendar sync)
   const handleSaveMass = async (
     massData: Omit<Messa, 'id' | 'creatoIl' | 'modificatoIl'>,
-    editId?: string
+    editId?: string,
+    syncToGoogleCalendar?: boolean
   ) => {
     if (!repository) throw new Error('Archivio non disponibile.');
 
+    let gcalEventId = massData.googleCalendarEventId;
+
+    if (token && syncToGoogleCalendar) {
+      try {
+        let calId = googleCalendarId;
+        if (!calId) {
+          calId = await getOrCreateRegistroMesseCalendar(token);
+          setGoogleCalendarId(calId);
+        }
+
+        if (editId && gcalEventId) {
+          const pseudoMass: Messa = { ...massData, id: editId, creatoIl: '', modificatoIl: '' };
+          await updateMassCalendarEvent(token, calId, gcalEventId, pseudoMass);
+        } else {
+          const pseudoMass: Messa = { ...massData, id: editId || 'temp', creatoIl: '', modificatoIl: '' };
+          gcalEventId = await createMassCalendarEvent(token, calId, pseudoMass);
+        }
+      } catch (calErr: any) {
+        console.warn('Sincronizzazione evento Google Calendar fallita:', calErr);
+      }
+    } else if (token && !syncToGoogleCalendar && gcalEventId && googleCalendarId) {
+      await deleteMassCalendarEvent(token, googleCalendarId, gcalEventId).catch(() => {});
+      gcalEventId = '';
+    }
+
+    const dataToSave = {
+      ...massData,
+      googleCalendarEventId: gcalEventId || '',
+    };
+
     if (editId) {
-      const updated = await repository.updateMass(editId, massData);
+      const updated = await repository.updateMass(editId, dataToSave);
       setMesse((prev) => prev.map((m) => (m.id === editId ? updated : m)));
-      showToast('Messa aggiornata correttamente.');
+      showToast(
+        syncToGoogleCalendar
+          ? 'Messa e Google Calendar aggiornati correttamente.'
+          : 'Messa aggiornata correttamente.'
+      );
     } else {
-      const created = await repository.createMass(massData);
+      const created = await repository.createMass(dataToSave);
       setMesse((prev) => [created, ...prev]);
-      showToast('Messa registrata correttamente.');
+      showToast(
+        syncToGoogleCalendar
+          ? 'Messa registrata e sincronizzata su Google Calendar!'
+          : 'Messa registrata correttamente.'
+      );
+    }
+
+    if (token) {
+      loadGoogleEvents(token);
     }
 
     // Refresh places list
@@ -305,14 +395,36 @@ export default function App() {
     if (!repository || !massToDelete) return;
     try {
       setIsDeleting(true);
+      if (token && massToDelete.googleCalendarEventId && googleCalendarId) {
+        await deleteMassCalendarEvent(token, googleCalendarId, massToDelete.googleCalendarEventId).catch(() => {});
+      }
       await repository.deleteMass(massToDelete.id);
       setMesse((prev) => prev.filter((m) => m.id !== massToDelete.id));
       showToast('Messa eliminata dal registro.');
       setMassToDelete(null);
+      if (token) {
+        loadGoogleEvents(token);
+      }
     } catch (err: any) {
       showToast('Errore durante l\'eliminazione: ' + err.message, 'error');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  // Toggle default Google Calendar sync setting
+  const handleToggleCalendarSync = async (enabled: boolean) => {
+    if (!repository) return;
+    try {
+      const updated = await repository.saveSettings({ syncGoogleCalendarDefault: enabled });
+      setSettings(updated);
+      showToast(
+        enabled
+          ? 'Sincronizzazione Google Calendar attiva di default per le nuove Messe.'
+          : 'Sincronizzazione Google Calendar disattivata di default.'
+      );
+    } catch (err: any) {
+      showToast('Errore salvataggio impostazioni: ' + err.message, 'error');
     }
   };
 
@@ -746,6 +858,10 @@ export default function App() {
             messe={messe}
             onOpenNewMassWithDate={handleOpenNewMassWithDate}
             onEditMass={handleEditMass}
+            googleEvents={googleEvents}
+            isCalendarLoading={isCalendarLoading}
+            onRefreshGoogleEvents={() => token && loadGoogleEvents(token)}
+            onOpenReadings={handleOpenReadings}
           />
         )}
 
@@ -777,6 +893,7 @@ export default function App() {
         initialDate={formInitialDate}
         frequentPlaces={luoghi}
         onOpenReadings={handleOpenReadings}
+        syncCalendarDefault={settings?.syncGoogleCalendarDefault !== false}
       />
 
       {/* 2. Settings & Backup Modal */}
@@ -794,6 +911,9 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenSacristyPrint={() => setIsSacristyPrintOpen(true)}
+        isCalendarSyncEnabled={settings?.syncGoogleCalendarDefault !== false}
+        calendarId={googleCalendarId || settings?.googleCalendarId}
+        onToggleCalendarSync={handleToggleCalendarSync}
       />
 
       {/* 3. User Guide & Configuration Instructions Modal (Section 69) */}

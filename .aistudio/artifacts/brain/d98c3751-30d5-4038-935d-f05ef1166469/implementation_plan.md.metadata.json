@@ -1,0 +1,6 @@
+{
+  "summary": "Piano di implementazione per l'integrazione di Google Calendar: visualizzazione unificata degli eventi personali e liturgici nel calendario mensile, sincronizzazione automatica opzionale delle Messe celebrate in un calendario dedicato \"Registro Messe\", e gestione dei permessi OAuth.",
+  "updatedAt": "2026-10-12T16:04:07.737582637Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

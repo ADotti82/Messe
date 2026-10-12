@@ -44,6 +44,7 @@ try {
 const provider = new GoogleAuthProvider();
 provider.addScope('https://www.googleapis.com/auth/drive.file');
 provider.addScope('https://www.googleapis.com/auth/spreadsheets');
+provider.addScope('https://www.googleapis.com/auth/calendar');
 provider.setCustomParameters({
   prompt: 'select_account',
 });
@@ -192,7 +193,7 @@ const ensureGISInitialized = () => {
   gisTokenClient = google.accounts.oauth2.initTokenClient({
     client_id: firebaseConfig.oAuthClientId,
     scope:
-      'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/calendar',
     callback: async (tokenResponse: any) => {
       if (tokenResponse.error) {
         if (gisReject) gisReject(new Error(tokenResponse.error_description || tokenResponse.error));

@@ -24,6 +24,7 @@ import {
   Eye,
   EyeOff,
   Lock,
+  Calendar,
 } from 'lucide-react';
 import { Impostazioni, Messa, Luogo, UserProfile, ThemeMode } from '../types';
 import {
@@ -50,6 +51,9 @@ interface SettingsModalProps {
   theme?: ThemeMode;
   onToggleTheme?: () => void;
   onOpenSacristyPrint?: () => void;
+  isCalendarSyncEnabled?: boolean;
+  calendarId?: string;
+  onToggleCalendarSync?: (enabled: boolean) => Promise<void>;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -66,6 +70,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   theme = 'dark',
   onToggleTheme,
   onOpenSacristyPrint,
+  isCalendarSyncEnabled = true,
+  calendarId,
+  onToggleCalendarSync,
 }) => {
   const [diocesi, setDiocesi] = useState<string>(settings?.diocesi || '');
   const [isSavingDiocese, setIsSavingDiocese] = useState<boolean>(false);
@@ -431,6 +438,63 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <span className="text-[11px] text-amber-400 font-mono">🔒 Protetto</span>
               </div>
             )}
+          </div>
+
+          {/* Google Calendar Dedicated Sync Section */}
+          <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/60 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center space-x-2">
+                <div className="w-7 h-7 rounded-lg bg-sky-950/80 border border-sky-600/40 flex items-center justify-center text-sky-300">
+                  <Calendar className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-semibold text-amber-200 text-sm">
+                    SINCRONIZZAZIONE GOOGLE CALENDAR
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Calendario dedicato "Registro Messe" collegato al tuo account Google
+                  </p>
+                </div>
+              </div>
+
+              {onToggleCalendarSync && (
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isCalendarSyncEnabled}
+                    onChange={(e) => onToggleCalendarSync(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-600"></div>
+                </label>
+              )}
+            </div>
+
+            <div className="bg-slate-950/80 p-3 rounded-lg border border-slate-800 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Stato sincronizzazione:</span>
+                <span className="text-emerald-400 font-semibold flex items-center space-x-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span>{isCalendarSyncEnabled ? 'Attiva di default' : 'Disattivata'}</span>
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Nome calendario Google:</span>
+                <span className="text-sky-300 font-medium">Registro Messe</span>
+              </div>
+
+              {calendarId && (
+                <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono truncate">
+                  <span>ID Calendario:</span>
+                  <span className="truncate max-w-[220px]">{calendarId}</span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Le celebrazioni registrate compariranno automaticamente anche nell'app Google Calendar del tuo telefono o tablet nel calendario "Registro Messe", permettendoti di visualizzare e coordinare gli impegni pastorali ovunque.
+            </p>
           </div>
 
           {/* Data Export Section */}

@@ -12,27 +12,41 @@ import {
   MapPin,
   Sparkles,
   Calendar as CalendarIcon,
-  X,
+  BookOpen,
+  RefreshCw,
+  ExternalLink,
+  Layers,
 } from 'lucide-react';
-import { Messa, CelebrazioneLiturgica, ColoreLiturgico } from '../types';
+import { Messa, CelebrazioneLiturgica, GoogleCalendarEvent } from '../types';
 import { fetchLiturgicalCelebration } from '../services/liturgyService';
 
 interface CalendarViewProps {
   messe: Messa[];
   onOpenNewMassWithDate: (dateStr: string) => void;
   onEditMass: (messa: Messa) => void;
+  googleEvents?: GoogleCalendarEvent[];
+  isCalendarLoading?: boolean;
+  onRefreshGoogleEvents?: () => void;
+  onOpenReadings?: (dateStr: string) => void;
 }
+
+type CalendarFilterType = 'all' | 'messe' | 'gcal';
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   messe,
   onOpenNewMassWithDate,
   onEditMass,
+  googleEvents = [],
+  isCalendarLoading = false,
+  onRefreshGoogleEvents,
+  onOpenReadings,
 }) => {
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [selectedDayStr, setSelectedDayStr] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [dayLiturgy, setDayLiturgy] = useState<CelebrazioneLiturgica | null>(null);
   const [isLiturgyLoading, setIsLiturgyLoading] = useState<boolean>(false);
   const [monthLiturgyCache, setMonthLiturgyCache] = useState<Record<string, CelebrazioneLiturgica>>({});
+  const [filterType, setFilterType] = useState<CalendarFilterType>('all');
 
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth(); // 0-indexed
@@ -62,6 +76,25 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     }
     return map;
   }, [messe]);
+
+  // Group Google Calendar events by date string (YYYY-MM-DD)
+  const gcalEventsByDate = useMemo(() => {
+    const map = new Map<string, GoogleCalendarEvent[]>();
+    for (const ev of googleEvents) {
+      let dateKey = '';
+      if (ev.start?.dateTime) {
+        dateKey = ev.start.dateTime.split('T')[0];
+      } else if (ev.start?.date) {
+        dateKey = ev.start.date;
+      }
+      if (dateKey) {
+        const list = map.get(dateKey) || [];
+        list.push(ev);
+        map.set(dateKey, list);
+      }
+    }
+    return map;
+  }, [googleEvents]);
 
   // Compute calendar grid days
   const daysInMonth = useMemo(() => {
@@ -148,10 +181,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [daysInMonth]);
+  }, [daysInMonth, monthLiturgyCache]);
 
   const monthName = currentDate.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
   const selectedMasses = massesByDate.get(selectedDayStr) || [];
+  const selectedGcalEvents = gcalEventsByDate.get(selectedDayStr) || [];
   const todayStr = new Date().toISOString().split('T')[0];
 
   const getColorDot = (color?: string) => {
@@ -164,18 +198,81 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return 'bg-emerald-600';
   };
 
+  const formatGcalTime = (ev: GoogleCalendarEvent) => {
+    if (ev.start?.dateTime) {
+      try {
+        const timePart = ev.start.dateTime.split('T')[1];
+        return timePart.slice(0, 5);
+      } catch {
+        return '';
+      }
+    }
+    return 'Tutto il giorno';
+  };
+
   return (
     <div className="space-y-4">
-      {/* Month Navigation Header */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 sm:p-4 flex items-center justify-between shadow-sm">
+      {/* Month Navigation & Filter Header */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-sm">
         <div className="flex items-center space-x-2">
           <CalendarIcon className="w-5 h-5 text-amber-400" />
           <h2 className="text-base sm:text-lg font-serif font-bold text-amber-100 capitalize">
             {monthName}
           </h2>
+          {isCalendarLoading && (
+            <span className="text-xs text-sky-400 flex items-center space-x-1 animate-pulse">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              <span className="hidden sm:inline">Aggiornamento Google Calendar...</span>
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center space-x-2">
+        {/* View Filter Segmented Controls */}
+        <div className="flex items-center space-x-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs self-start sm:self-auto">
+          <button
+            onClick={() => setFilterType('all')}
+            className={`px-2.5 py-1 rounded-md transition-colors ${
+              filterType === 'all'
+                ? 'bg-amber-700 text-amber-100 font-semibold shadow-xs'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Tutti
+          </button>
+          <button
+            onClick={() => setFilterType('messe')}
+            className={`px-2.5 py-1 rounded-md transition-colors ${
+              filterType === 'messe'
+                ? 'bg-amber-700 text-amber-100 font-semibold shadow-xs'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            ☩ Solo Messe
+          </button>
+          <button
+            onClick={() => setFilterType('gcal')}
+            className={`px-2.5 py-1 rounded-md transition-colors ${
+              filterType === 'gcal'
+                ? 'bg-sky-800 text-sky-100 font-semibold shadow-xs'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            📅 Google Calendar
+          </button>
+        </div>
+
+        {/* Month Navigation Buttons */}
+        <div className="flex items-center space-x-2 self-end sm:self-auto">
+          {onRefreshGoogleEvents && (
+            <button
+              onClick={onRefreshGoogleEvents}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-sky-300 transition-colors"
+              title="Ricarica eventi Google Calendar"
+            >
+              <RefreshCw className={`w-4 h-4 ${isCalendarLoading ? 'animate-spin text-sky-400' : ''}`} />
+            </button>
+          )}
+
           <button
             onClick={handleToday}
             className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 font-medium transition-colors"
@@ -219,15 +316,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
             {daysInMonth.map((day) => {
               const dayMasses = massesByDate.get(day.dateStr) || [];
+              const dayGcalEvents = gcalEventsByDate.get(day.dateStr) || [];
               const isSelected = selectedDayStr === day.dateStr;
               const isToday = todayStr === day.dateStr;
               const cachedLit = monthLiturgyCache[day.dateStr];
+
+              const showMassesBadge = (filterType === 'all' || filterType === 'messe') && dayMasses.length > 0;
+              const showGcalBadge = (filterType === 'all' || filterType === 'gcal') && dayGcalEvents.length > 0;
 
               return (
                 <button
                   key={day.dateStr}
                   onClick={() => setSelectedDayStr(day.dateStr)}
-                  className={`min-h-[48px] sm:min-h-[72px] p-1 sm:p-1.5 rounded-lg border flex flex-col justify-between text-left transition-all relative overflow-hidden ${
+                  className={`min-h-[56px] sm:min-h-[76px] p-1 sm:p-1.5 rounded-lg border flex flex-col justify-between text-left transition-all relative overflow-hidden ${
                     isSelected
                       ? 'bg-amber-950/70 border-amber-500 shadow-md ring-1 ring-amber-500/50'
                       : day.isCurrentMonth
@@ -257,15 +358,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     )}
                   </div>
 
-                  {/* Mass count badge on this day */}
-                  <div className="mt-1 flex items-center justify-between">
-                    {dayMasses.length > 0 ? (
-                      <span className="text-[10px] bg-red-900/80 border border-red-700/80 text-amber-100 font-semibold px-1.5 py-0.5 rounded-full flex items-center space-x-0.5">
+                  {/* Mass & Google Calendar badges on this day */}
+                  <div className="mt-1 flex flex-col sm:flex-row items-start sm:items-center gap-1 w-full">
+                    {showMassesBadge && (
+                      <span className="text-[10px] bg-red-950/90 border border-red-700/80 text-amber-100 font-semibold px-1.5 py-0.5 rounded flex items-center space-x-0.5">
                         <span className="font-serif">☩</span>
                         <span>{dayMasses.length}</span>
                       </span>
-                    ) : (
-                      <span />
+                    )}
+
+                    {showGcalBadge && (
+                      <span className="text-[10px] bg-sky-950/90 border border-sky-700/80 text-sky-200 font-semibold px-1.5 py-0.5 rounded flex items-center space-x-0.5">
+                        <span>📅</span>
+                        <span>{dayGcalEvents.length}</span>
+                      </span>
                     )}
                   </div>
                 </button>
@@ -277,7 +383,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         {/* Selected Day Inspector Panel */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-sm space-y-4 flex flex-col justify-between">
           <div className="space-y-4">
-            {/* Day Title */}
+            {/* Day Title & Liturgy */}
             <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
               <div>
                 <span className="text-xs uppercase tracking-wider text-amber-400 font-mono">
@@ -292,6 +398,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   })}
                 </h3>
               </div>
+
+              {onOpenReadings && (
+                <button
+                  onClick={() => onOpenReadings(selectedDayStr)}
+                  className="flex items-center space-x-1 text-xs text-amber-300 hover:text-amber-200 bg-amber-950/60 border border-amber-700/50 px-2.5 py-1 rounded-lg transition-colors"
+                  title="Leggi letture del giorno"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Letture</span>
+                </button>
+              )}
             </div>
 
             {/* Liturgical celebration of selected day */}
@@ -330,52 +447,125 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               )}
             </div>
 
-            {/* Masses celebrated on selected day */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
-                <span>MESSE CELEBRATE ({selectedMasses.length})</span>
-              </div>
-
-              {selectedMasses.length === 0 ? (
-                <div className="p-4 bg-slate-950/40 rounded-lg border border-slate-800/60 text-center text-xs text-slate-400">
-                  Nessuna Messa registrata per questa data.
+            {/* Section 1: Masses celebrated on selected day */}
+            {(filterType === 'all' || filterType === 'messe') && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
+                  <span className="flex items-center space-x-1">
+                    <span className="font-serif text-amber-400">☩</span>
+                    <span>MESSE CELEBRATE ({selectedMasses.length})</span>
+                  </span>
                 </div>
-              ) : (
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {selectedMasses.map((m) => (
-                    <div
-                      key={m.id}
-                      onClick={() => onEditMass(m)}
-                      className="p-2.5 bg-slate-950 rounded-lg border border-slate-800 hover:border-amber-700/60 transition-colors cursor-pointer text-xs space-y-1"
-                    >
-                      <div className="flex items-center justify-between font-medium">
-                        <span className="text-amber-200 font-mono flex items-center space-x-1">
-                          <Clock className="w-3 h-3 text-amber-400" />
-                          <span>{m.ora}</span>
-                        </span>
-                        <span className="text-[11px] text-slate-400 font-serif truncate max-w-[150px]">
-                          {m.luogo}
-                        </span>
-                      </div>
-                      {m.tipoIntenzione && m.tipoIntenzione !== 'Nessuna' && (
-                        <div className="text-[11px] text-purple-200 flex items-center space-x-1">
-                          <span>{m.tipoIntenzione === 'Per un defunto' ? '✝️' : '🙏'}</span>
-                          <span className="truncate">
-                            {m.nomeDefunto || m.intenzione || m.tipoIntenzione}
+
+                {selectedMasses.length === 0 ? (
+                  <div className="p-3 bg-slate-950/40 rounded-lg border border-slate-800/60 text-center text-xs text-slate-400">
+                    Nessuna Messa registrata per questa data.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {selectedMasses.map((m) => (
+                      <div
+                        key={m.id}
+                        onClick={() => onEditMass(m)}
+                        className="p-2.5 bg-slate-950 rounded-lg border border-slate-800 hover:border-amber-700/60 transition-colors cursor-pointer text-xs space-y-1"
+                      >
+                        <div className="flex items-center justify-between font-medium">
+                          <span className="text-amber-200 font-mono flex items-center space-x-1">
+                            <Clock className="w-3 h-3 text-amber-400" />
+                            <span>{m.ora}</span>
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-serif truncate max-w-[150px]">
+                            {m.luogo}
                           </span>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {m.tipoIntenzione && m.tipoIntenzione !== 'Nessuna' && (
+                          <div className="text-[11px] text-purple-200 flex items-center space-x-1">
+                            <span>{m.tipoIntenzione === 'Per un defunto' ? '✝️' : '🙏'}</span>
+                            <span className="truncate">
+                              {m.nomeDefunto || m.intenzione || m.tipoIntenzione}
+                            </span>
+                          </div>
+                        )}
+                        {m.googleCalendarEventId && (
+                          <div className="text-[10px] text-sky-400/80 flex items-center space-x-1 pt-0.5">
+                            <span>📅 Sincronizzata in Google Calendar</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Section 2: Google Calendar Personal Events */}
+            {(filterType === 'all' || filterType === 'gcal') && (
+              <div className="space-y-2 pt-1 border-t border-slate-800">
+                <div className="flex items-center justify-between text-xs font-semibold text-sky-300">
+                  <span className="flex items-center space-x-1">
+                    <span>📅</span>
+                    <span>IMPEGNI GOOGLE CALENDAR ({selectedGcalEvents.length})</span>
+                  </span>
                 </div>
-              )}
-            </div>
+
+                {selectedGcalEvents.length === 0 ? (
+                  <div className="p-3 bg-slate-950/40 rounded-lg border border-slate-800/60 text-center text-xs text-slate-400">
+                    Nessun impegno da Google Calendar in questa data.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {selectedGcalEvents.map((ev) => (
+                      <div
+                        key={ev.id}
+                        className="p-2.5 bg-slate-950/80 rounded-lg border border-sky-900/40 text-xs space-y-1 hover:border-sky-700/60 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-sky-200 truncate pr-2">
+                            {ev.summary}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-mono shrink-0">
+                            {formatGcalTime(ev)}
+                          </span>
+                        </div>
+
+                        {ev.location && (
+                          <div className="flex items-center space-x-1 text-[11px] text-slate-400 truncate">
+                            <MapPin className="w-3 h-3 text-sky-400 shrink-0" />
+                            <span>{ev.location}</span>
+                          </div>
+                        )}
+
+                        {ev.description && (
+                          <p className="text-[11px] text-slate-400 line-clamp-2 italic">
+                            {ev.description}
+                          </p>
+                        )}
+
+                        {ev.htmlLink && (
+                          <div className="pt-1 flex justify-end">
+                            <a
+                              href={ev.htmlLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] text-sky-400 hover:text-sky-300 flex items-center space-x-1"
+                            >
+                              <span>Apri in Google Calendar</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Quick Add Mass for this Day */}
           <button
             onClick={() => onOpenNewMassWithDate(selectedDayStr)}
-            className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-red-800 to-amber-700 hover:from-red-700 hover:to-amber-600 text-amber-50 px-4 py-2.5 rounded-lg font-semibold text-xs sm:text-sm shadow-md transition-all active:scale-95 border border-amber-400/30"
+            className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-red-800 to-amber-700 hover:from-red-700 hover:to-amber-600 text-amber-50 px-4 py-2.5 rounded-lg font-semibold text-xs sm:text-sm shadow-md transition-all active:scale-95 border border-amber-400/30 cursor-pointer"
           >
             <PlusCircle className="w-4 h-4 text-amber-200" />
             <span>+ Registra Messa per questo giorno</span>

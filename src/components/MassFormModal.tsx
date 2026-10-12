@@ -34,11 +34,16 @@ import { detectLocationAndResolvePlace } from '../services/gpsService';
 interface MassFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (massData: Omit<Messa, 'id' | 'creatoIl' | 'modificatoIl'>, editId?: string) => Promise<void>;
+  onSave: (
+    massData: Omit<Messa, 'id' | 'creatoIl' | 'modificatoIl'>,
+    editId?: string,
+    syncToGoogleCalendar?: boolean
+  ) => Promise<void>;
   editingMass?: Messa | null;
   initialDate?: string;
   frequentPlaces: Luogo[];
   onOpenReadings?: (dateStr: string) => void;
+  syncCalendarDefault?: boolean;
 }
 
 const INTENTIONS_LIST: { id: TipoIntenzione; label: string; icon: string }[] = [
@@ -60,6 +65,7 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
   initialDate,
   frequentPlaces,
   onOpenReadings,
+  syncCalendarDefault = true,
 }) => {
   // Format helpers
   const getTodayStr = () => new Date().toISOString().split('T')[0];
@@ -96,6 +102,7 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
   const [offerta, setOfferta] = useState<string>('');
   const [offertaLibera, setOffertaLibera] = useState<boolean>(false);
   const [showStipendDetails, setShowStipendDetails] = useState<boolean>(false);
+  const [syncGoogleCalendar, setSyncGoogleCalendar] = useState<boolean>(true);
 
   // UI status
   const [isGpsLoading, setIsGpsLoading] = useState<boolean>(false);
@@ -133,6 +140,7 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
       setOfferta(editingMass.offerta !== undefined && editingMass.offerta !== null ? String(editingMass.offerta) : '');
       setOffertaLibera(Boolean(editingMass.offertaLibera));
       setShowStipendDetails(Boolean((editingMass.offerta !== undefined && editingMass.offerta !== null && editingMass.offerta !== 0) || editingMass.offertaLibera));
+      setSyncGoogleCalendar(Boolean(editingMass.googleCalendarEventId || syncCalendarDefault !== false));
     } else {
       const targetDate = initialDate || getTodayStr();
       setData(targetDate);
@@ -158,6 +166,7 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
       setOfferta('');
       setOffertaLibera(false);
       setShowStipendDetails(false);
+      setSyncGoogleCalendar(syncCalendarDefault !== false);
 
       // Load liturgical day for the selected date
       loadLiturgyForDate(targetDate);
@@ -281,8 +290,10 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
           offerta: offertaLibera ? null : (offerta ? Number(offerta) : null),
           offertaLibera,
           note: note.trim(),
+          googleCalendarEventId: editingMass?.googleCalendarEventId,
         },
-        editingMass?.id
+        editingMass?.id,
+        syncGoogleCalendar
       );
 
       onClose();
@@ -756,6 +767,32 @@ export const MassFormModal: React.FC<MassFormModalProps> = ({
               )}
             </div>
           )}
+
+          {/* Section: Google Calendar Synchronization Toggle */}
+          <div className="bg-slate-800/40 p-3.5 rounded-lg border border-slate-700/50 flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <span className="text-base">📅</span>
+              <div>
+                <label htmlFor="sync-gcal-checkbox" className="text-xs font-semibold text-slate-200 block cursor-pointer">
+                  Sincronizza su Google Calendar
+                </label>
+                <span className="text-[11px] text-slate-400">
+                  Salva automaticamente nel calendario dedicato "Registro Messe"
+                </span>
+              </div>
+            </div>
+
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                id="sync-gcal-checkbox"
+                type="checkbox"
+                checked={syncGoogleCalendar}
+                onChange={(e) => setSyncGoogleCalendar(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
+            </label>
+          </div>
 
           {/* Section: Notes */}
           <div className="bg-slate-800/40 p-3.5 rounded-lg border border-slate-700/50 space-y-1">

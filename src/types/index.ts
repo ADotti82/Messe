@@ -40,6 +40,7 @@ export interface Messa {
   offerta?: number | null; // importo elemosina/offerta in euro
   offertaLibera?: boolean; // true se senza elemosina o offerta libera
   note: string;
+  googleCalendarEventId?: string; // ID evento collegato in Google Calendar
   creatoIl: string;
   modificatoIl: string;
 }
@@ -67,6 +68,26 @@ export interface Impostazioni {
   versioneApp: string;
   spreadsheetId?: string;
   spreadsheetUrl?: string;
+  syncGoogleCalendarDefault?: boolean;
+  googleCalendarId?: string;
+}
+
+export interface GoogleCalendarEvent {
+  id: string;
+  summary: string;
+  description?: string;
+  location?: string;
+  start: {
+    dateTime?: string;
+    date?: string;
+  };
+  end: {
+    dateTime?: string;
+    date?: string;
+  };
+  htmlLink?: string;
+  colorId?: string;
+  isRegistroMesse?: boolean;
 }
 
 export interface CelebrazioneLiturgica {
