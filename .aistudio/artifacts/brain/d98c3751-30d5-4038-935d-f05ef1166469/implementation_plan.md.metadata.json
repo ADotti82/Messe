@@ -1,6 +1,6 @@
 {
-  "summary": "Piano di risoluzione dell'errore di autenticazione Google OAuth 2.0 (credenziali non valide / token scaduto): rilevamento proattivo della scadenza del token, gestione automatica dell'errore 401, rimozione dei token obsoleti dal localStorage e modale di riconnessione a 1 clic.",
-  "updatedAt": "2026-10-12T22:36:38.042465836Z",
+  "summary": "Piano di implementazione per la risoluzione di Errore 400: origin_mismatch e il supporto completo ai domini personalizzati/Vercel (guida Google Cloud + gestione Client ID personalizzato nell'app).",
+  "updatedAt": "2026-10-12T22:57:46.292080120Z",
   "requestFeedback": true,
   "userFacing": true
 }

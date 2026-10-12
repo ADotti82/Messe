@@ -27,6 +27,47 @@ export const firebaseConfig = {
   oAuthClientId: import.meta.env.VITE_OAUTH_CLIENT_ID || rawFirebaseConfig.oAuthClientId,
 };
 
+const STORAGE_CUSTOM_OAUTH_CLIENT_ID = 'registro_messe_custom_oauth_client_id';
+
+export const getDefaultOAuthClientId = (): string => {
+  return import.meta.env.VITE_OAUTH_CLIENT_ID || rawFirebaseConfig.oAuthClientId;
+};
+
+export const getEffectiveOAuthClientId = (): string => {
+  try {
+    const custom = localStorage.getItem(STORAGE_CUSTOM_OAUTH_CLIENT_ID);
+    if (custom && custom.trim()) {
+      return custom.trim();
+    }
+  } catch (e) {
+    // Ignore storage read error
+  }
+  return getDefaultOAuthClientId();
+};
+
+export const setCustomOAuthClientId = (clientId: string | null) => {
+  try {
+    if (clientId && clientId.trim()) {
+      localStorage.setItem(STORAGE_CUSTOM_OAUTH_CLIENT_ID, clientId.trim());
+    } else {
+      localStorage.removeItem(STORAGE_CUSTOM_OAUTH_CLIENT_ID);
+    }
+    // Invalidate GIS client singleton so the next call uses the updated Client ID
+    gisTokenClient = null;
+  } catch (e) {
+    console.warn('Error setting custom OAuth client id:', e);
+  }
+};
+
+export const isCustomOAuthClientIdConfigured = (): boolean => {
+  try {
+    const custom = localStorage.getItem(STORAGE_CUSTOM_OAUTH_CLIENT_ID);
+    return Boolean(custom && custom.trim());
+  } catch {
+    return false;
+  }
+};
+
 // Initialize Firebase App safely (singleton)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
@@ -228,13 +269,51 @@ const ensureGISInitialized = () => {
   const google = window.google;
   if (!google?.accounts?.oauth2 || gisTokenClient) return;
 
+  const clientId = getEffectiveOAuthClientId();
+
   gisTokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: firebaseConfig.oAuthClientId,
+    client_id: clientId,
     scope:
       'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/calendar',
+    error_callback: (errorDetails: any) => {
+      console.warn('Google Identity Services error callback:', errorDetails);
+      const errStr = typeof errorDetails === 'string' ? errorDetails : JSON.stringify(errorDetails || {});
+      const isOriginMismatch =
+        errStr.includes('origin_mismatch') ||
+        errStr.includes('idpiframe_initialization_failed') ||
+        errorDetails?.type === 'popup_failed_to_open';
+      const err = new Error(
+        isOriginMismatch
+          ? `Errore 400: origin_mismatch. Il dominio "${window.location.origin}" non è registrato tra le Origini JavaScript autorizzate su Google Cloud per il Client ID "${clientId}".`
+          : errorDetails?.message || 'Errore durante la richiesta di accesso Google Identity Services.'
+      );
+      (err as any).isOriginMismatch = isOriginMismatch;
+      (err as any).currentOrigin = window.location.origin;
+      (err as any).currentDomain = window.location.hostname;
+      (err as any).clientId = clientId;
+      (err as any).projectId = firebaseConfig.projectId;
+      if (gisReject) gisReject(err);
+    },
     callback: async (tokenResponse: any) => {
       if (tokenResponse.error) {
-        if (gisReject) gisReject(new Error(tokenResponse.error_description || tokenResponse.error));
+        const errorDesc = tokenResponse.error_description || tokenResponse.error;
+        const isOriginMismatch =
+          String(errorDesc).includes('origin_mismatch') ||
+          String(tokenResponse.error).includes('origin_mismatch') ||
+          String(errorDesc).includes('idpiframe_initialization_failed');
+
+        const err = new Error(
+          isOriginMismatch
+            ? `Errore 400: origin_mismatch. Il dominio "${window.location.origin}" non è registrato tra le Origini JavaScript autorizzate su Google Cloud.`
+            : errorDesc
+        );
+        (err as any).isOriginMismatch = isOriginMismatch;
+        (err as any).currentOrigin = window.location.origin;
+        (err as any).currentDomain = window.location.hostname;
+        (err as any).clientId = clientId;
+        (err as any).projectId = firebaseConfig.projectId;
+
+        if (gisReject) gisReject(err);
         return;
       }
       if (!tokenResponse.access_token) {
@@ -334,14 +413,21 @@ export const googleSignIn = async (): Promise<{ user: UserProfile; accessToken: 
   } catch (firebaseErr: any) {
     if (
       firebaseErr.code === 'auth/unauthorized-domain' ||
-      firebaseErr.message?.includes('unauthorized-domain')
+      firebaseErr.message?.includes('unauthorized-domain') ||
+      firebaseErr.message?.includes('origin_mismatch')
     ) {
+      const isOriginMismatch = firebaseErr.message?.includes('origin_mismatch');
       const err = new Error(
-        `Il dominio corrente (${window.location.hostname}) non è ancora nei domini autorizzati di Firebase.`
+        isOriginMismatch
+          ? `Errore 400: origin_mismatch. Il dominio "${window.location.origin}" non è registrato tra le Origini JavaScript autorizzate su Google Cloud per questo Client ID.`
+          : `Il dominio corrente (${window.location.hostname}) non è ancora nei domini autorizzati di Firebase.`
       );
-      (err as any).code = 'auth/unauthorized-domain';
+      (err as any).code = isOriginMismatch ? 'auth/origin-mismatch' : 'auth/unauthorized-domain';
+      (err as any).isOriginMismatch = true;
       (err as any).domain = window.location.hostname;
+      (err as any).currentOrigin = window.location.origin;
       (err as any).projectId = firebaseConfig.projectId;
+      (err as any).clientId = getEffectiveOAuthClientId();
       throw err;
     }
     throw firebaseErr;

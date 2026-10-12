@@ -25,6 +25,9 @@ import {
   EyeOff,
   Lock,
   Calendar,
+  Globe,
+  Key,
+  RotateCcw,
 } from 'lucide-react';
 import { Impostazioni, Messa, Luogo, UserProfile, ThemeMode } from '../types';
 import {
@@ -35,6 +38,12 @@ import {
   validateBackupFile,
   BackupPackage,
 } from '../services/exportBackupService';
+import {
+  getEffectiveOAuthClientId,
+  setCustomOAuthClientId,
+  getDefaultOAuthClientId,
+  isCustomOAuthClientIdConfigured,
+} from '../services/auth';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface SettingsModalProps {
@@ -54,6 +63,7 @@ interface SettingsModalProps {
   isCalendarSyncEnabled?: boolean;
   calendarId?: string;
   onToggleCalendarSync?: (enabled: boolean) => Promise<void>;
+  onOpenDomainHelper?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -73,10 +83,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isCalendarSyncEnabled = true,
   calendarId,
   onToggleCalendarSync,
+  onOpenDomainHelper,
 }) => {
   const [diocesi, setDiocesi] = useState<string>(settings?.diocesi || '');
   const [isSavingDiocese, setIsSavingDiocese] = useState<boolean>(false);
   const [dioceseSavedMsg, setDioceseSavedMsg] = useState<boolean>(false);
+
+  // Custom OAuth Client ID state
+  const [customClientIdInput, setCustomClientIdInput] = useState<string>(getEffectiveOAuthClientId());
+  const [clientIdSavedMsg, setClientIdSavedMsg] = useState<boolean>(false);
 
   // Restore state
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
@@ -495,6 +510,113 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <p className="text-[11px] text-slate-400 leading-relaxed">
               Le celebrazioni registrate compariranno automaticamente anche nell'app Google Calendar del tuo telefono o tablet nel calendario "Registro Messe", permettendoti di visualizzare e coordinare gli impegni pastorali ovunque.
             </p>
+          </div>
+
+          {/* Domain & OAuth Client ID Configuration (Vercel / PWA) */}
+          <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/60 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center space-x-2">
+                <div className="w-7 h-7 rounded-lg bg-indigo-950/80 border border-indigo-600/40 flex items-center justify-center text-indigo-300">
+                  <Globe className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-semibold text-amber-200 text-sm">
+                    DOMINIO WEB & CLIENT ID OAUTH (VERCEL / PRODUZIONE)
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Configurazione origini autorizzate per Google Workspace e Calendar
+                  </p>
+                </div>
+              </div>
+
+              {onOpenDomainHelper && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenDomainHelper();
+                  }}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-amber-300 rounded-lg transition-colors cursor-pointer"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Guida autorizzazione Vercel</span>
+                </button>
+              )}
+            </div>
+
+            <div className="bg-slate-950/80 p-3 rounded-lg border border-slate-800 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Origine Web Attuale:</span>
+                <span className="font-mono text-emerald-400 font-semibold">
+                  {typeof window !== 'undefined' ? window.location.origin : 'https://messe-nine.vercel.app'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Stato Configurazione Client ID:</span>
+                <span className="text-slate-200 font-medium">
+                  {isCustomOAuthClientIdConfigured() ? (
+                    <span className="text-amber-300">Personalizzato dall'utente</span>
+                  ) : (
+                    <span className="text-emerald-400">Predefinito di sistema</span>
+                  )}
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                <label className="text-slate-400 text-[11px] block font-medium">
+                  ID Client OAuth 2.0 (Google Cloud):
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customClientIdInput}
+                    onChange={(e) => setCustomClientIdInput(e.target.value)}
+                    placeholder="es. 123456789-abcdef.apps.googleusercontent.com"
+                    className="flex-1 px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 font-mono text-[11px] focus:ring-1 focus:ring-amber-500 focus:outline-none truncate"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomOAuthClientId(customClientIdInput.trim() || null);
+                      setClientIdSavedMsg(true);
+                      setTimeout(() => setClientIdSavedMsg(false), 3000);
+                    }}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-semibold rounded-lg text-xs transition-colors shrink-0 cursor-pointer"
+                  >
+                    Salva
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  {clientIdSavedMsg ? (
+                    <span className="text-emerald-400 text-[11px] flex items-center space-x-1">
+                      <CheckCircle className="w-3 h-3" />
+                      <span>Client ID salvato con successo!</span>
+                    </span>
+                  ) : (
+                    <span className="text-slate-500 text-[10px]">
+                      Modifica solo se disponi di un tuo progetto Google Cloud separato.
+                    </span>
+                  )}
+
+                  {isCustomOAuthClientIdConfigured() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomOAuthClientId(null);
+                        setCustomClientIdInput(getDefaultOAuthClientId());
+                        setClientIdSavedMsg(true);
+                        setTimeout(() => setClientIdSavedMsg(false), 3000);
+                      }}
+                      className="text-[10px] text-amber-400 hover:text-amber-300 underline cursor-pointer"
+                    >
+                      Ripristina predefinito
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Data Export Section */}

@@ -246,8 +246,12 @@ export default function App() {
 
   const [isDomainModalOpen, setIsDomainModalOpen] = useState<boolean>(false);
   const [unauthorizedDomain, setUnauthorizedDomain] = useState<string>(
-    typeof window !== 'undefined' ? window.location.hostname : ''
+    typeof window !== 'undefined' ? window.location.hostname : 'messe-nine.vercel.app'
   );
+  const [unauthorizedOrigin, setUnauthorizedOrigin] = useState<string>(
+    typeof window !== 'undefined' ? window.location.origin : 'https://messe-nine.vercel.app'
+  );
+  const [domainModalDefaultTab, setDomainModalDefaultTab] = useState<'gcp' | 'firebase' | 'custom_client'>('gcp');
 
   // Login handler
   const handleGoogleLogin = async () => {
@@ -261,17 +265,29 @@ export default function App() {
       const repo = new GoogleSheetsRepository(accessToken, loggedUser);
       setRepository(repo);
     } catch (err: any) {
+      const isOriginMismatch =
+        err.isOriginMismatch ||
+        err.code === 'auth/origin-mismatch' ||
+        err.message?.includes('origin_mismatch') ||
+        err.message?.includes('idpiframe_initialization_failed');
+
       const isUnauthorizedDomain =
+        isOriginMismatch ||
         err.code === 'auth/unauthorized-domain' ||
         err.message?.includes('unauthorized-domain') ||
         err.message?.includes('auth/unauthorized-domain');
 
       if (isUnauthorizedDomain) {
         const domain = err.domain || window.location.hostname;
+        const orig = err.currentOrigin || window.location.origin;
         setUnauthorizedDomain(domain);
+        setUnauthorizedOrigin(orig);
+        setDomainModalDefaultTab(isOriginMismatch ? 'gcp' : 'firebase');
         setIsDomainModalOpen(true);
         setAuthError(
-          `Il dominio "${domain}" non è autorizzato in Firebase per questo progetto Google.`
+          isOriginMismatch
+            ? `Errore 400: origin_mismatch. L'origine "${orig}" non è registrata nelle Origini JavaScript autorizzate in Google Cloud.`
+            : `Il dominio "${domain}" non è autorizzato in Firebase per questo progetto Google.`
         );
       } else {
         setAuthError(
@@ -296,10 +312,27 @@ export default function App() {
       const repo = new GoogleSheetsRepository(accessToken, loggedUser);
       setRepository(repo);
     } catch (err: any) {
-      setAuthError(
-        err.message ||
-          'Accesso con Google non riuscito. Verifica la connessione e concedi i permessi.'
-      );
+      const isOriginMismatch =
+        err.isOriginMismatch ||
+        err.message?.includes('origin_mismatch') ||
+        err.message?.includes('idpiframe_initialization_failed');
+
+      if (isOriginMismatch) {
+        const domain = err.currentDomain || window.location.hostname;
+        const orig = err.currentOrigin || window.location.origin;
+        setUnauthorizedDomain(domain);
+        setUnauthorizedOrigin(orig);
+        setDomainModalDefaultTab('gcp');
+        setIsDomainModalOpen(true);
+        setAuthError(
+          `Errore 400: origin_mismatch. L'origine "${orig}" non è registrata nelle Origini JavaScript autorizzate in Google Cloud.`
+        );
+      } else {
+        setAuthError(
+          err.message ||
+            'Accesso con Google non riuscito. Verifica la connessione e concedi i permessi.'
+        );
+      }
     } finally {
       setIsAuthLoading(false);
     }
@@ -342,6 +375,19 @@ export default function App() {
       loadGoogleEvents(accessToken);
     } catch (err: any) {
       console.warn('Errore rinnovo sessione Google:', err);
+      const isOriginMismatch =
+        err.isOriginMismatch ||
+        err.message?.includes('origin_mismatch') ||
+        err.message?.includes('idpiframe_initialization_failed');
+
+      if (isOriginMismatch) {
+        const domain = err.currentDomain || window.location.hostname;
+        const orig = err.currentOrigin || window.location.origin;
+        setUnauthorizedDomain(domain);
+        setUnauthorizedOrigin(orig);
+        setDomainModalDefaultTab('gcp');
+        setIsDomainModalOpen(true);
+      }
       throw err;
     } finally {
       setIsAuthLoading(false);
@@ -707,13 +753,18 @@ export default function App() {
                   <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                   <span className="leading-snug">{authError}</span>
                 </div>
-                {authError.includes('non è autorizzato') && (
+                {(authError.includes('non è autorizzato') ||
+                  authError.includes('origin_mismatch') ||
+                  authError.includes('400')) && (
                   <button
                     type="button"
-                    onClick={() => setIsDomainModalOpen(true)}
-                    className="w-full bg-amber-700/80 hover:bg-amber-600 text-amber-100 font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-sm"
+                    onClick={() => {
+                      setDomainModalDefaultTab(authError.includes('origin_mismatch') ? 'gcp' : 'firebase');
+                      setIsDomainModalOpen(true);
+                    }}
+                    className="w-full bg-amber-700/80 hover:bg-amber-600 text-amber-100 font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-sm cursor-pointer"
                   >
-                    <span>Come autorizzare "{unauthorizedDomain}" in 1 minuto</span>
+                    <span>Come autorizzare "{unauthorizedOrigin || unauthorizedDomain}" in 1 minuto</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -797,15 +848,17 @@ export default function App() {
           Applicazione per sacerdoti • Calendario Romano Generale CalAPI (general-it) • Google Drive API v3 • Google Sheets API v4
         </div>
 
-        {/* Unauthorized Domain Modal */}
+        {/* Unauthorized Domain / Origin Mismatch Modal */}
         <UnauthorizedDomainModal
           isOpen={isDomainModalOpen}
           onClose={() => setIsDomainModalOpen(false)}
           domain={unauthorizedDomain}
+          origin={unauthorizedOrigin}
           projectId={firebaseConfig.projectId}
           onRetry={handleGoogleLogin}
           onDemoLogin={handleDemoLogin}
           onGISLogin={handleGISLogin}
+          defaultTab={domainModalDefaultTab}
         />
 
         {/* User Guide Modal */}
@@ -970,6 +1023,10 @@ export default function App() {
         isCalendarSyncEnabled={settings?.syncGoogleCalendarDefault !== false}
         calendarId={googleCalendarId || settings?.googleCalendarId}
         onToggleCalendarSync={handleToggleCalendarSync}
+        onOpenDomainHelper={() => {
+          setDomainModalDefaultTab('gcp');
+          setIsDomainModalOpen(true);
+        }}
       />
 
       {/* 3. User Guide & Configuration Instructions Modal (Section 69) */}
@@ -1028,6 +1085,19 @@ export default function App() {
         onRenew={handleRenewSession}
         onLogout={handleLogout}
         userEmail={user?.email}
+      />
+
+      {/* 10. Unauthorized Domain / Origin Mismatch Modal */}
+      <UnauthorizedDomainModal
+        isOpen={isDomainModalOpen}
+        onClose={() => setIsDomainModalOpen(false)}
+        domain={unauthorizedDomain}
+        origin={unauthorizedOrigin}
+        projectId={firebaseConfig.projectId}
+        onRetry={handleGoogleLogin}
+        onDemoLogin={handleDemoLogin}
+        onGISLogin={handleGISLogin}
+        defaultTab={domainModalDefaultTab}
       />
     </div>
   );
