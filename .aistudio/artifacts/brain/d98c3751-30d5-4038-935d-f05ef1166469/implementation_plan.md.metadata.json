@@ -1,6 +1,6 @@
 {
-  "summary": "Piano di implementazione per l'integrazione di Google Calendar: visualizzazione unificata degli eventi personali e liturgici nel calendario mensile, sincronizzazione automatica opzionale delle Messe celebrate in un calendario dedicato \"Registro Messe\", e gestione dei permessi OAuth.",
-  "updatedAt": "2026-10-12T16:04:07.737582637Z",
+  "summary": "Piano di risoluzione dell'errore di autenticazione Google OAuth 2.0 (credenziali non valide / token scaduto): rilevamento proattivo della scadenza del token, gestione automatica dell'errore 401, rimozione dei token obsoleti dal localStorage e modale di riconnessione a 1 clic.",
+  "updatedAt": "2026-10-12T22:36:38.042465836Z",
   "requestFeedback": true,
   "userFacing": true
 }

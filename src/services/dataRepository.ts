@@ -44,6 +44,7 @@ export interface IDataRepository {
   saveSettings(settings: Partial<Impostazioni>): Promise<Impostazioni>;
   resetArchive(): Promise<boolean>;
   isDemo(): boolean;
+  updateAccessToken?(token: string): void;
 }
 
 /**
@@ -272,6 +273,10 @@ export class GoogleSheetsRepository implements IDataRepository {
 
   getSpreadsheetUrl(): string | null {
     return this.spreadsheetUrl || (this.spreadsheetId ? `https://docs.google.com/spreadsheets/d/${this.spreadsheetId}/edit` : null);
+  }
+
+  updateAccessToken(token: string): void {
+    this.accessToken = token;
   }
 
   async init(): Promise<{ hasArchive: boolean; spreadsheetId?: string; spreadsheetUrl?: string }> {

@@ -11,6 +11,7 @@ import {
   googleSignOut,
   setDemoMode,
   checkIsDemoMode,
+  onTokenExpired,
 } from './services/auth';
 import {
   IDataRepository,
@@ -40,6 +41,7 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 import { SacristyPrintModal } from './components/SacristyPrintModal';
 import { AnniversariesModal } from './components/AnniversariesModal';
 import { ReadingsModal } from './components/ReadingsModal';
+import { SessionExpiredModal } from './components/SessionExpiredModal';
 import { useTheme } from './hooks/useTheme';
 import { getAnniversariImminenti } from './services/anniversariesService';
 import { BackupPackage } from './services/exportBackupService';
@@ -86,6 +88,16 @@ export default function App() {
   const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEvent[]>([]);
   const [isCalendarLoading, setIsCalendarLoading] = useState<boolean>(false);
   const [googleCalendarId, setGoogleCalendarId] = useState<string | null>(null);
+
+  // Session expired modal state
+  const [isSessionExpiredModalOpen, setIsSessionExpiredModalOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const unsubscribe = onTokenExpired(() => {
+      setIsSessionExpiredModalOpen(true);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Delete modal state
   const [massToDelete, setMassToDelete] = useState<Messa | null>(null);
@@ -164,6 +176,15 @@ export default function App() {
       }
     } catch (err: any) {
       console.error('Errore inizializzazione archivio:', err);
+      if (
+        err.message?.includes('AUTH_TOKEN_EXPIRED') ||
+        err.message?.includes('invalid authentication credentials') ||
+        err.message?.includes('UNAUTHENTICATED') ||
+        err.message?.includes('401')
+      ) {
+        setIsSessionExpiredModalOpen(true);
+        return;
+      }
       if (err.message === 'ARCHIVE_NOT_FOUND') {
         setHasArchive(false);
       } else {
@@ -203,6 +224,13 @@ export default function App() {
         setGoogleEvents(events);
       } catch (err: any) {
         console.warn('Errore caricamento eventi Google Calendar:', err);
+        if (
+          err.message?.includes('AUTH_TOKEN_EXPIRED') ||
+          err.message?.includes('invalid authentication credentials') ||
+          err.message?.includes('UNAUTHENTICATED')
+        ) {
+          setIsSessionExpiredModalOpen(true);
+        }
       } finally {
         setIsCalendarLoading(false);
       }
@@ -293,6 +321,33 @@ export default function App() {
     setRepository(repo);
   };
 
+  // 1-Click Renew Session Handler when Google OAuth token expires
+  const handleRenewSession = async () => {
+    try {
+      setIsAuthLoading(true);
+      const { user: renewedUser, accessToken } = await signInWithGIS();
+      setUser(renewedUser);
+      setToken(accessToken);
+      setIsSessionExpiredModalOpen(false);
+
+      if (repository && typeof (repository as any).updateAccessToken === 'function') {
+        (repository as any).updateAccessToken(accessToken);
+        await loadArchiveAndData(repository);
+      } else {
+        const repo = new GoogleSheetsRepository(accessToken, renewedUser);
+        setRepository(repo);
+      }
+
+      showToast('Sessione Google rinnovata con successo!');
+      loadGoogleEvents(accessToken);
+    } catch (err: any) {
+      console.warn('Errore rinnovo sessione Google:', err);
+      throw err;
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
   // Logout handler
   const handleLogout = async () => {
     try {
@@ -305,6 +360,7 @@ export default function App() {
       setLuoghi([]);
       setSettings(null);
       setIsDemo(false);
+      setIsSessionExpiredModalOpen(false);
       showToast('Sessione chiusa correttamente.');
     } catch (err: any) {
       console.error('Errore disconnessione:', err);
@@ -964,6 +1020,14 @@ export default function App() {
         isOpen={isReadingsOpen}
         onClose={() => setIsReadingsOpen(false)}
         initialDate={readingsDate}
+      />
+
+      {/* 9. Session Expired 1-Click Renewal Modal */}
+      <SessionExpiredModal
+        isOpen={isSessionExpiredModalOpen}
+        onRenew={handleRenewSession}
+        onLogout={handleLogout}
+        userEmail={user?.email}
       />
     </div>
   );

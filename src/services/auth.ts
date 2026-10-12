@@ -65,6 +65,12 @@ export const getSavedSession = (): StoredSession | null => {
     if (!raw) return null;
     const session = JSON.parse(raw) as StoredSession;
     if (session && session.user && session.accessToken) {
+      // Check if access token is expired
+      if (session.expiresAt && Date.now() > session.expiresAt) {
+        console.warn('Google OAuth session is expired. Clearing stale token to prevent 401 errors.');
+        clearSavedSession();
+        return null;
+      }
       return session;
     }
   } catch (e) {
@@ -83,6 +89,7 @@ export const saveSession = (
     const session: StoredSession = {
       user,
       accessToken,
+      // Default Google OAuth token lifespan is 3600s; renew safety margin of 120s
       expiresAt: Date.now() + Math.max(expiresInSeconds - 120, 600) * 1000,
       authMethod,
       savedAt: Date.now(),
@@ -99,6 +106,37 @@ export const clearSavedSession = () => {
     localStorage.removeItem(STORAGE_SESSION_KEY);
     cachedAccessToken = null;
   } catch (e) {}
+};
+
+// Token expired event notification system
+type TokenExpiredListener = () => void;
+const tokenExpiredListeners = new Set<TokenExpiredListener>();
+
+export const onTokenExpired = (listener: TokenExpiredListener) => {
+  tokenExpiredListeners.add(listener);
+  return () => {
+    tokenExpiredListeners.delete(listener);
+  };
+};
+
+export const notifyTokenExpired = () => {
+  console.warn('Notified: Google OAuth token expired or returned 401.');
+  clearSavedSession();
+  tokenExpiredListeners.forEach((listener) => {
+    try {
+      listener();
+    } catch (err) {
+      console.warn('Error in tokenExpired listener:', err);
+    }
+  });
+};
+
+export const updateStoredAccessToken = (newToken: string, expiresInSeconds: number = 3600) => {
+  cachedAccessToken = newToken;
+  const saved = getSavedSession();
+  if (saved) {
+    saveSession(saved.user, newToken, expiresInSeconds, saved.authMethod);
+  }
 };
 
 // Cache the access token in memory for fast synchronous access

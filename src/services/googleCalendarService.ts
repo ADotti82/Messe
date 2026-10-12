@@ -4,6 +4,7 @@
  */
 
 import { Messa, GoogleCalendarEvent } from '../types';
+import { notifyTokenExpired } from './auth';
 
 const CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3';
 export const REGISTRO_MESSE_CALENDAR_NAME = 'Registro Messe';
@@ -20,6 +21,11 @@ export async function getOrCreateRegistroMesseCalendar(accessToken: string): Pro
   const listRes = await fetch(`${CALENDAR_API_BASE}/users/me/calendarList`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
+
+  if (listRes.status === 401) {
+    notifyTokenExpired();
+    throw new Error('AUTH_TOKEN_EXPIRED: Credenziali Google scadute. Rinnova l\'accesso.');
+  }
 
   if (!listRes.ok) {
     throw new Error(`Errore recupero calendari Google: ${listRes.statusText}`);
@@ -106,6 +112,10 @@ export async function fetchAllCalendarEvents(
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
+      if (res.status === 401) {
+        notifyTokenExpired();
+        return;
+      }
       if (!res.ok) {
         console.warn(`Errore fetch eventi per calendario ${calId}:`, res.statusText);
         return;

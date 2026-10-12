@@ -1,110 +1,77 @@
-# Integrazione Google Calendar: Visualizzazione Eventi e Sincronizzazione Messe
+# Risoluzione Errore Credenziali Google OAuth & Rinnovo Automatico Sessione
 
-Integrazione bidirezionale con Google Calendar che consente di visualizzare gli impegni personali e parrocchiali integrati nel calendario liturgico mensile e di sincronizzare opzionalmente ogni celebrazione in un calendario Google dedicato ("Registro Messe").
+Risoluzione definitiva dell'errore `Request had invalid authentication credentials` (HTTP 401) causato dalla scadenza naturale dei token temporanei di Google OAuth 2.0 o dalla presenza di token obsoleti salvati nella cache del browser.
 
 ### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> Decisioni confermate dall'utente nella fase preliminare di chiarimento:
+> **Causa identificata del problema**:
+> I token di accesso Google OAuth 2.0 (emessi da Google Identity Services e Firebase) hanno una durata predefinita di 60 minuti. Attualmente il token viene salvato nel `localStorage` del browser ma non viene verificato rispetto alla data di scadenza al momento del riavvio dell'app. Di conseguenza, quando il token scade, le chiamate a Google Drive, Fogli o Google Calendar restituiscono l'errore:
+> `Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential.`
 
-- **Visualizzazione Unificata**: Gli eventi personali di Google Calendar saranno mostrati direttamente all'interno della vista *Calendario* già esistente, con indicatori grafici distintivi rispetto alle Messe e alle celebrazioni del giorno.
-- **Sincronizzazione Intelligente con Selettore**: Il salvataggio della Messa in Google Calendar sarà attivo di default sia nelle *Impostazioni* che nel modulo di registrazione della singola Messa, con un interruttore rapido (toggle) per escludere celebrazioni private o non rilevanti per l'agenda.
-- **Calendario Dedicato "Registro Messe"**: L'applicazione verificherà l'esistenza o creerà automaticamente un calendario secondario intitolato **"Registro Messe"** su Google Calendar dell'utente, mantenendo ordinata l'agenda personale senza sovrapporre o confondere gli impegni quotidiani.
+- **Rilevamento Scadenza Token in Avvio**: All'apertura dell'applicazione, `getSavedSession()` verificherà se il timestamp `expiresAt` è trascorso. Se il token è scaduto, verrà rimosso prima di inviare richieste non autorizzate a Google.
+- **Riconnessione Immediata a 1 Clic**: Nel caso in cui il token scada durante l'utilizzo dell'app o al risveglio del dispositivo, verrà mostrato un messaggio chiaro e rassicurante in italiano ("Sessione Google scaduta per sicurezza") con un pulsante diretto per rinnovare l'autorizzazione con un solo clic senza perdere alcun dato inserito.
+- **Aggiornamento Dinamico del Repository**: Al rinnovo del token, il client Fogli e Google Calendar riceveranno immediatamente il nuovo token senza richiedere il ricaricamento forzato della pagina.
 
 ---
 
 ### 1. Overview & Core Concept
 
-- **Che cosa fa**: Consente al sacerdote di avere un'unica vista d'insieme su celebrazioni liturgiche, Messe celebrate/programmate e appuntamenti personali o pastorali (catechismi, incontri con famiglie, impegni diocesani) recuperati da Google Calendar. Alla registrazione di una nuova Messa (o modifica), l'evento viene sincronizzato con orario, chiesa/luogo, intenzione di suffragio e grado liturgico.
-- **Destinatari**: Sacerdoti diocesani, parroci e cappellani che gestiscono un'agenda parrocchiale e desiderano coordinare il registro liturgico con i propri dispositivi mobili sincronizzati con Google Calendar.
-- **Valore principale**: Elimina la duplicazione del lavoro: annotare la Messa nel registro aggiorna contemporaneamente l'agenda personale consultabile da smartphone o smartwatch, evitando sovrapposizioni di orari e impegni pastorali.
+- **Cosa risolve**: Elimina il blocco dell'applicazione dovuto a token scaduti o non validi, garantendo che il sacerdote non rimanga mai bloccato da messaggi di errore tecnici indecifrabili.
+- **Esperienza Utente**: Quando la sessione Google scade (tipicamente dopo 1 ora di inattività o alla riapertura dell'app dopo molte ore), l'app gestisce l'evento con grazia: mostra una finestra amichevole che permette di confermare l'account Google con un solo tocco, ripristinando subito la sincronizzazione di Fogli e Calendar.
 
 ---
 
 ### 2. User Experience & Visual Design
 
-- **Flussi Utente Principali**:
-  1. *Consultazione Calendario Unificato*:
-     - Aprendo la scheda *Calendario*, ogni casella del mese mostra:
-       - Indicatore della celebrazione e colore liturgico del giorno (es. Verde, Bianco, Viola, Rosso).
-       - Badge delle Messe celebrate (con luogo e orario).
-       - Badge discreti degli eventi Google Calendar personali (con orario e titolo, contrassegnati con un'icona calendario azzurra/indaco distinta dal simbolo sacro ☩).
-     - Cliccando su un giorno si apre il dettaglio laterale/cassetto con la suddivisione chiara tra **"Messe del giorno"** e **"Impegni da Google Calendar"**.
-  2. *Registrazione Messa con Sincronizzazione*:
-     - Nel form `MassFormModal`, compare l'interruttore:
-       `[✓] Sincronizza su Google Calendar ("Registro Messe")` (attivo di default).
-     - Al salvataggio, l'evento viene creato su Google Calendar con:
-       - Titolo: *Messa [Luogo] - [Intenzione / Defunto]*
-       - Descrizione: *Celebrazione liturgica: [Nome festa / Grado]. Intenzione: [Dettaglio]. Richiedente: [Famiglia].*
-       - Luogo: indirizzo o nome della chiesa.
-  3. *Gestione Impostazioni & Disattivazione*:
-     - Nel pannello *Impostazioni*, una sezione **"Sincronizzazione Google Calendar"** mostra lo stato di connessione, l'ID del calendario "Registro Messe" collegato, l'opzione per disattivare/riattivare il salvataggio automatico di default, e un pulsante per forzare il refresh degli eventi.
-
-- **Identità Visiva & Gerarchia**:
-  - Rispetto rigoroso della linea estetica ecclesiastica: sfondo scuro notte (slate-950/slate-900) con rifiniture in ambra e oro liturgico.
-  - Gli eventi liturgici e le Messe mantengono i colori liturgici autentici (Viola per defunti, Bianco, Rosso, Verde).
-  - Gli eventi Google Calendar personali utilizzano un tono sobrio blu pastello/indaco (`bg-sky-950/70 border-sky-700/60 text-sky-200`) per una distinzione immediata a colpo d'occhio senza disordine visivo né pillole rumorose.
+- **Flusso di Recupero Sessione**:
+  1. *Riconoscimento Errore 401*: Qualsiasi richiesta verso Google Drive, Fogli o Calendar che riceve un codice 401 attiva l'evento centralizzato `AUTH_TOKEN_EXPIRED`.
+  2. *Modale / Banner di Rinnovo*: Compare una finestra modale in stile liturgico (`bg-slate-900 border-amber-600/50`):
+     - Titolo: **"Rinnovo Sessione Google Richiesto"**
+     - Spiegazione: *"Per la sicurezza del tuo account, l'autorizzazione di accesso a Google Drive e Google Calendar scade periodicamente. Clicca qui sotto per rinnovare la sessione in un istante."*
+     - Pulsante d'azione: **"Rinnova Accesso con Google"** (esegue `signInWithGIS()` direttamente sull'evento click dell'utente).
+  3. *Ripristino Trasparente*: Non appena il nuovo token viene generato, i dati del foglio e del calendario vengono ricaricati automaticamente, chiudendo la finestra di dialogo.
 
 ---
 
 ### 3. Key Product Decisions & Trade-Offs
 
-- **Decisione 1: Calendario Dedicato vs. Calendario Principale**:
-  - *Scelta*: Creazione e utilizzo del calendario secondario `"Registro Messe"`.
-  - *Perché*: Se il sacerdote desidera nascondere o mostrare le Messe sul proprio smartphone (Google Calendar app), può farlo semplicemente attivando/disattivando la spunta del calendario "Registro Messe", senza intasare il proprio calendario primario.
-  - *Alternativa scartata*: Salvare tutto nel calendario primario avrebbe reso impossibile filtrare le celebrazioni o cancellarle in blocco.
-
-- **Decisione 2: Sincronizzazione Diretta Client-Side vs Backend**:
-  - *Scelta*: Integrazione tramite Google Calendar REST API v3 con il token OAuth già autenticato dell'utente.
-  - *Perché*: Rispetta pienamente l'architettura decentralizzata dell'app (nessun dato o credenziale risiede su server centrale; tutti i dati viaggiano tra il browser del sacerdote e i servizi Google di sua proprietà).
-
-- **Decisione 3: Ambito OAuth (Scope Minimization)**:
-  - *Scelta*: Aggiunta dello scope `https://www.googleapis.com/auth/calendar` tramite la procedura standard `set_up_oauth`.
-  - *Perché*: Consente sia di leggere gli eventi esistenti che di creare il calendario dedicato "Registro Messe" e inserire gli eventi.
+- **Decisione 1: Rimozione Token Scaduti dal LocalStorage**:
+  - *Scelta*: Se `Date.now() > session.expiresAt`, scartare il token salvato e reimpostare lo stato di autenticazione.
+  - *Perché*: Evita che l'app tenti 3-4 chiamate API destinate a fallire con errore 401 prima di capire che il token non è più valido.
+- **Decisione 2: Gestore Centralizzato 401 con Event Listener**:
+  - *Scelta*: Aggiunta di un interceptor / dispatcher su `googleDrive.ts`, `googleSheets.ts`, e `googleCalendarService.ts` che notifica `App.tsx` quando un token viene rifiutato con 401.
+  - *Perché*: Garantisce che qualsiasi servizio che riscontri una credenziale non valida possa richiedere il rinnovo immediato senza causare crash o eccezioni non gestite.
 
 ---
 
-### 4. Technical Architecture & Data Strategy
+### 4. Technical Architecture & Component Hierarchy
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                                CLIENT                                  │
-│                                                                        │
-│   ┌─────────────────────┐             ┌────────────────────────────┐   │
-│   │   MassFormModal     │             │       CalendarView         │   │
-│   │ [✓] Sync to GCal    │             │  ┌──────────────────────┐  │   │
-│   └──────────┬──────────┘             │  │ Liturgia del giorno  │  │   │
-│              │                        │  ├──────────────────────┤  │   │
-│              ▼                        │  │ Messe celebrate      │  │   │
-│   ┌─────────────────────┐             │  ├──────────────────────┤  │   │
-│   │  googleCalendar     │             │  │ Impegni GCalendar 📅 │  │   │
-│   │  Service            │◄───────────►│  └──────────────────────┘  │   │
-│   └──────────┬──────────┘             └────────────────────────────┘   │
-│              │                                                         │
-└──────────────┼─────────────────────────────────────────────────────────┘
-               │ OAuth Bearer Token
-               ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                        GOOGLE WORKSPACE APIS                           │
-│                                                                        │
-│   ┌──────────────────────────────────┐                                 │
-│   │ Google Calendar API v3           │                                 │
-│   │ • GET /users/me/calendarList     │                                 │
-│   │ • POST /calendars (create if new)│                                 │
-│   │ • GET /calendars/{id}/events     │                                 │
-│   │ • POST /calendars/{id}/events    │                                 │
-│   │ • PATCH/DELETE events on mass edit                               │
-│   └──────────────────────────────────┘                                 │
-└────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                      React Application                      │
+│                          (App.tsx)                          │
+├──────────────────────────────┬──────────────────────────────┤
+│   Interfaccia Utente         │   Gestione Stato Sessione    │
+│   • Calendario / Messe       │   • isSessionExpired: boolean│
+│   • Modale Rinnovo Sessione  │   • onTokenExpired handler   │
+└──────────────┬───────────────┴──────────────┬───────────────┘
+               │                              │
+               ▼                              ▼
+┌──────────────────────────────┐ ┌────────────────────────────┐
+│      Servizi Google API      │ │    Servizio Autenticazione  │
+│  (Drive / Sheets / Calendar) │ │         (auth.ts)          │
+├──────────────────────────────┤ ├────────────────────────────┤
+│ • checkFileExists()          │ │ • getSavedSession()        │
+│ • readSheetRange()           │ │   (verifica expiresAt)     │
+│ • fetchAllCalendarEvents()   │ │ • signInWithGIS()          │
+│ • Intercetta 401 e lancia    │ │ • clearSavedSession()      │
+│   evento TOKEN_EXPIRED       │ │                            │
+└──────────────────────────────┘ └────────────────────────────┘
 ```
 
-- **Entità e Struttura Dati**:
-  - `GoogleCalendarEvent`: id, summary, start, end, location, description, htmlLink.
-  - Estensione modello `Messa`: campo opzionale `googleCalendarEventId?: string` per mantenere il collegamento tra la riga di Google Sheets e l'evento su Google Calendar (permettendo aggiornamenti e cancellazioni sincronizzate).
-  - Estensione modello `Impostazioni`: `syncGoogleCalendarDefault: boolean`, `googleCalendarId?: string`.
-
-- **Mappatura Flussi e Componenti**:
-  - `googleCalendarService.ts`: Gestisce il recupero dei calendari, la ricerca/creazione di "Registro Messe", il fetch degli eventi del mese corrente e l'inserimento/aggiornamento/cancellazione eventi.
-  - `CalendarView.tsx`: Arricchito con il caricamento asincrono degli eventi da Google Calendar, selettore per filtrare la vista ("Tutti gli impegni", "Solo Messe", "Solo Google Calendar") e modale dettaglio evento.
-  - `MassFormModal.tsx`: Include l'interruttore visivo sincronizzazione con indicatore dello stato del calendario Google.
-  - `SettingsModal.tsx`: Sezione di gestione e preferenze per il calendario Google.
+- **Passaggi di Implementazione**:
+  1. Aggiornare `src/services/auth.ts`: validazione timestamp in `getSavedSession()`, gestione callback di scadenza token e metodo di rinnovo.
+  2. Aggiornare `src/services/googleSheets.ts`, `src/services/googleDrive.ts`, `src/services/googleCalendarService.ts` per intercettare status 401 e segnalare `TOKEN_EXPIRED`.
+  3. Aggiungere in `src/App.tsx` lo stato `isSessionExpiredModalOpen` con pulsante dedicato di rinnovo con un clic per ristabilire immediatamente il token e rieseguire le query senza ricaricare la pagina.
+  4. Verificare con `compile_applet` e `lint_applet`.

@@ -4,6 +4,7 @@
  */
 
 import { Messa, Luogo, Impostazioni } from '../types';
+import { notifyTokenExpired } from './auth';
 
 export const MESSE_HEADERS = [
   'id',
@@ -53,6 +54,15 @@ export const IMPOSTAZIONI_HEADERS = [
   'dataUltimaModifica',
   'versioneApp',
 ];
+
+async function handleSheetResponseError(res: Response, defaultMsg: string): Promise<never> {
+  if (res.status === 401) {
+    notifyTokenExpired();
+    throw new Error('AUTH_TOKEN_EXPIRED: Credenziali Google scadute. Rinnova l\'accesso per continuare.');
+  }
+  const err = await res.json().catch(() => ({}));
+  throw new Error(err.error?.message || `${defaultMsg} (${res.status})`);
+}
 
 /**
  * Creates the user's personal Google Spreadsheet with 3 tabs and configured headers.
@@ -165,8 +175,7 @@ export async function createPersonalSpreadsheet(
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Errore ${res.status} durante la creazione del Google Sheet`);
+    await handleSheetResponseError(res, 'Errore durante la creazione del Google Sheet');
   }
 
   const data = await res.json();
@@ -193,8 +202,7 @@ export async function readSheetRange(
     throw new Error('ARCHIVE_NOT_FOUND');
   }
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Errore lettura Fogli (${res.status})`);
+    await handleSheetResponseError(res, 'Errore lettura Fogli');
   }
 
   const data = await res.json();
@@ -226,8 +234,7 @@ export async function appendSheetRow(
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Errore inserimento riga (${res.status})`);
+    await handleSheetResponseError(res, 'Errore inserimento riga');
   }
 }
 
@@ -256,8 +263,7 @@ export async function updateSheetRow(
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Errore aggiornamento riga (${res.status})`);
+    await handleSheetResponseError(res, 'Errore aggiornamento riga');
   }
 }
 
@@ -274,6 +280,10 @@ export async function getSheetIdByTitle(
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
+  if (res.status === 401) {
+    notifyTokenExpired();
+    return null;
+  }
   if (!res.ok) return null;
   const data = await res.json();
   const found = data.sheets?.find((s: any) => s.properties?.title === sheetTitle);
@@ -314,8 +324,7 @@ export async function deleteSheetRow(
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Errore cancellazione riga (${res.status})`);
+    await handleSheetResponseError(res, 'Errore cancellazione riga');
   }
 }
 

@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { notifyTokenExpired } from './auth';
+
 export interface DriveFileItem {
   id: string;
   name: string;
@@ -20,6 +22,11 @@ export async function getOrCreateAppFolder(accessToken: string): Promise<string 
     const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)&spaces=drive`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+
+    if (searchRes.status === 401) {
+      notifyTokenExpired();
+      return null;
+    }
 
     if (searchRes.ok) {
       const data = await searchRes.json();
@@ -60,12 +67,17 @@ export async function checkFileExists(accessToken: string, fileId: string): Prom
     const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,trashed,webViewLink`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+    if (res.status === 401) {
+      notifyTokenExpired();
+      throw new Error('AUTH_TOKEN_EXPIRED: Credenziali Google scadute.');
+    }
     if (res.status === 404) return null;
     if (!res.ok) return null;
     const data = await res.json();
     if (data.trashed) return null;
     return data;
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.message?.includes('AUTH_TOKEN_EXPIRED')) throw err;
     console.error('Errore durante la verifica del file Drive:', err);
     return null;
   }
@@ -81,6 +93,11 @@ export async function findUserSpreadsheet(accessToken: string, fullName: string)
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
+    if (res.status === 401) {
+      notifyTokenExpired();
+      throw new Error('AUTH_TOKEN_EXPIRED: Credenziali Google scadute.');
+    }
+
     if (!res.ok) return null;
     const data = await res.json();
     if (!data.files || data.files.length === 0) return null;
@@ -88,7 +105,8 @@ export async function findUserSpreadsheet(accessToken: string, fullName: string)
     // Prefer file matching "Registro Messe"
     const match = data.files.find((f: any) => f.name.includes('Registro Messe')) || data.files[0];
     return match;
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.message?.includes('AUTH_TOKEN_EXPIRED')) throw err;
     console.error('Errore durante la ricerca dello spreadsheet:', err);
     return null;
   }
