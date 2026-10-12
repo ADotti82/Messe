@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   initAuth,
   googleSignIn,
+  signInWithGIS,
   googleSignOut,
   setDemoMode,
   checkIsDemoMode,
@@ -203,6 +204,27 @@ export default function App() {
             'Accesso non riuscito. Verifica la connessione e concedi i permessi per Google Drive e Fogli.'
         );
       }
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  // Direct Google Identity Services (GIS) Login handler
+  const handleGISLogin = async () => {
+    try {
+      setAuthError(null);
+      setIsAuthLoading(true);
+      const { user: loggedUser, accessToken } = await signInWithGIS();
+      setUser(loggedUser);
+      setToken(accessToken);
+      setIsDemo(false);
+      const repo = new GoogleSheetsRepository(accessToken, loggedUser);
+      setRepository(repo);
+    } catch (err: any) {
+      setAuthError(
+        err.message ||
+          'Accesso con Google non riuscito. Verifica la connessione e concedi i permessi.'
+      );
     } finally {
       setIsAuthLoading(false);
     }
@@ -574,6 +596,15 @@ export default function App() {
                 <span>ACCEDI CON GOOGLE</span>
               </button>
 
+              {/* Direct Google Identity Services button (runs synchronously on click) */}
+              <button
+                type="button"
+                onClick={handleGISLogin}
+                className="w-full bg-slate-800/90 hover:bg-slate-700 text-amber-200 hover:text-white font-medium px-4 py-2.5 rounded-xl border border-amber-600/30 transition-all flex items-center justify-center space-x-2 text-xs cursor-pointer"
+              >
+                <span>⚡ Accesso Diretto Google Identity</span>
+              </button>
+
               {/* Demo Mode Button */}
               <div className="pt-2 border-t border-slate-800">
                 <button
@@ -606,6 +637,7 @@ export default function App() {
           projectId={firebaseConfig.projectId}
           onRetry={handleGoogleLogin}
           onDemoLogin={handleDemoLogin}
+          onGISLogin={handleGISLogin}
         />
 
         {/* User Guide Modal */}
